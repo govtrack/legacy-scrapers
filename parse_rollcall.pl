@@ -7,8 +7,8 @@ require "persondb.pl";
 require "db.pl";
 require "indexing.pl";
 
-require "../sitedata/gis/loaddistricts_109.pl";
-require "../sitedata/gis/loaddistricts_110.pl";
+require "../gis/loaddistricts_109.pl";
+require "../gis/loaddistricts_110.pl";
 
 my $debug = 1;
 
@@ -96,7 +96,7 @@ sub DownloadRollCallVotesAll {
 		$node->setAttribute('roll', $xml->findvalue('roll/@roll'));
 		$node->setAttribute('title', $xml->findvalue('roll/question'));
 		
-		if ($xml->findvalue('roll/result') =~ /Passed|Agreed|Confirmed/i) { $node->setAttribute('result', 'pass'); }
+		if ($xml->findvalue('roll/result') =~ /Passed|Agreed|Confirmed|Amendment Germane|Decision of Chair Sustained|Veto Overridden/i) { $node->setAttribute('result', 'pass'); }
 		elsif ($xml->findvalue('roll/result') =~ /Fail|Defeated|Rejected|Not Sustained/i) { $node->setAttribute('result', 'fail'); }
 		else { warn "$vote: Unparsed result, deleting: " . $xml->findvalue('roll/result'); unlink "../data/us/$SESSION/rolls/$vote"; }
 
@@ -282,6 +282,7 @@ sub GetSenateVote {
 			$response->message; }
 	$HTTP_BYTES_FETCHED += length($response->content);
 	my $content = $response->content;
+	if ($content !~ /Question/) { warn "Vote not found on senate website: $URL"; return; }
 	my @contentlines = split(/[\n\r]+/, $content);
 
 	my $TYPE = "";
@@ -782,7 +783,7 @@ sub MakeVoteMap {
 	}
 
 	my %PersonRoles;
-	if (scalar(@voterids) == 0) { die "Failed to get any IDs of people?!?"; }
+	if (scalar(@voterids) == 0) { warn "Failed to get any IDs of people in $votefile?!?"; return; }
 	foreach my $r (@{ DBSelect(people_roles, [personid, state, district], [DBSpecIn(personid, @voterids), $PERSON_ROLE_NOW, "type = '$reptype'"]) }) {
 		$PersonRoles{"$$r[0]:$session"} = [$$r[1], $$r[2]];
 	}
@@ -893,10 +894,10 @@ sub LoadPolys {
 			return LoadPolys('geo', $reptype, $session, $state, $dist);
 		}
 		if ($reptype eq 'sen') {
-			require "../sitedata/gis/data/cartogrampoints-$session-state.pl";
+			require "../gis/data/cartogrampoints-$session-state.pl";
 			return $CartogramPolygons_state{$session}{"$state"};
 		} else {
-			require "../sitedata/gis/data/cartogrampoints-$session-dist.pl";
+			require "../gis/data/cartogrampoints-$session-dist.pl";
 			if ($dist eq '') { # entire state boundary
 				return $CartogramPolygons_dist{$session}{"$state"};
 			} else { # just the district

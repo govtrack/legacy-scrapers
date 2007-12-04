@@ -132,7 +132,7 @@ sub GetCR2 {
 	$HTTP_BYTES_FETCHED += length($response->content);
 	
 	$content = $response->content;
-	$content =~ s/<center><pre>\[Page\: \w\d+\]<\/pre><\/center>[\n\r]//g;
+	$content =~ s/<center><pre>\[Page\: [HS]\d+\]<\/pre><\/center>[\n\r]//g;
 	$content =~ s/<center><pre>\[Time\: [\d\:]+\]<\/pre><\/center>[\n\r]//g;
 
 	if ($TITLE =~ "TEXT OF AMENDMENTS") {
@@ -171,7 +171,7 @@ sub GetCR2 {
 
 	foreach my $line (@contentlines) {
 		if ($line !~ s/^<p>\&nbsp;\&nbsp;\&nbsp;//
-			#&& $line !~ /^\w/
+			& $line !~ s/^<center>(.*)<\/center>/$1/
 			) { next; }
 
 		$line =~ s/\s+$//g;
@@ -282,9 +282,9 @@ sub GetCR2 {
 			AddNode($curnode, "paragraph", $line);
 			$spokencount++;
 			$lastspokes = "$speakertitle$speakername$ofwhere";
-		} elsif ($speaking == -2 && $lastspoke != -2) {
+		} elsif ($speaking == -2) {
 			AddNode($X->documentElement, "chair", $line);
-		} elsif ($speaking == -1 && $lastspoke != -1) {
+		} elsif ($speaking == -1) {
 			AddNode($X->documentElement, "narrative", $line);
 		}
 		

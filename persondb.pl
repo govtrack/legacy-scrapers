@@ -99,6 +99,7 @@ sub PersonDBGetID {
 	# Normalize extended characters (also
 	# repeated below).
 	$name =~ s/é/e/g;
+	$name =~ s/ú/u/g;
 
 	# Split last name, first name
 
@@ -186,9 +187,11 @@ sub PersonDBGetID {
 		. " or " . DBSpecEQ(lastname,$lastname2)
 		. " or " . DBSpecEQ(middlename,$lastname2)
 		. " or (" . DBSpecEQ("middlename",$lastsplit[0]) . " and " . DBSpecEQ("lastname",$lastsplit[1]) . " and " . scalar(@lastsplit) . '=2)'
-		. "or " . DBSpecStartsWith(lastname,$lastname . '-')
-		. "or " . DBSpecStartsWith(lastname,$lastname . ' ')
-		#. "or " . DBSpecEndsWith(lastname,'-' . $lastname)
+		. " or " . DBSpecStartsWith(lastname,$lastname . '-')
+		. " or " . DBSpecStartsWith(lastname,$lastname . ' ')
+		. " or " . (scalar(@fnames) < 2 ? 0 : DBSpecEQ(lastname, $fnames[scalar(@fnames)-1] . ' ' . $lastname))
+		. " or " . (scalar(@fnames) < 2 ? 0 : DBSpecEQ(lastname, $fnames[scalar(@fnames)-1] . '-' . $lastname))
+		#. " or " . DBSpecEndsWith(lastname,'-' . $lastname)
 		]);
 	foreach my $match (@{$matches1}) {
 		my @rolespec = ();
@@ -211,6 +214,7 @@ sub PersonDBGetID {
 		# name (also repeated above).
 		for my $n ($$match{firstname}, $$match{nickname}, $$match{namemod}, $$match{middlename}) {
 			$n =~ s/é/e/g;
+			$n =~ s/ú/u/g;
 		}
 
 		# Make list of possible first name strings
@@ -241,7 +245,7 @@ sub PersonDBGetID {
 		$matches2score = $fnmatch;
 	}
 
-	if (scalar(@matches2) > 1) { warn "Multiple people match " . join(", ", @_); }
+	if (scalar(@matches2) > 1) { warn "Multiple people match " . join(", ", @_) . ": " . join(", ", @matches2); }
 	if (scalar(@matches2) == 1) { return $matches2[0]; }
 
 	return undef;

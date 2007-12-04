@@ -46,6 +46,7 @@ sub IndexBill {
 
 	my $officialtitle_as = $bill->findvalue('titles/title[@type="official"][position()=last()]/@as');
 	my $officialtitle = $bill->findvalue("titles/title[\@type='official' and \@as='$officialtitle_as'][position()=1]");
+	my $shorttitle_as = $bill->findvalue('titles/title[@type="short"][position()=last()]/@as');
 
 	my ($status) = $bill->findnodes('status/*');
 	$status->setAttribute('sponsor', $bill->findvalue('sponsor/@id')) if ($bill->findvalue('sponsor/@id') ne '');
@@ -58,7 +59,15 @@ sub IndexBill {
 			titletype => 'popular',
 			title => $title->textContent);
 	}
-	foreach my $title ($bill->findnodes('titles/title[not(@type="popular") and @as="' . $officialtitle_as . '"]')) {
+	foreach my $title ($bill->findnodes('titles/title[@type="official" and @as="' . $officialtitle_as . '"]')) {
+		DBInsert(DELAYED, billtitles,
+			session => $session,
+			type => $type,
+			number => $number,
+			titletype => $title->getAttribute('type'),
+			title => $title->textContent);
+	}
+	foreach my $title ($bill->findnodes('titles/title[@type="short" and @as="' . $shorttitle_as . '"]')) {
 		DBInsert(DELAYED, billtitles,
 			session => $session,
 			type => $type,
@@ -69,7 +78,8 @@ sub IndexBill {
 
 	if ($status->getAttribute('roll') ne "") {
 		my $rid = $status->getAttribute('where') . YearFromDateTime($status->getAttribute('datetime')) . "-" . $status->getAttribute('roll');
-
+		if (-e "../data/us/$session/rolls/$rid.xml") {
+	
 		my $roll = $XMLPARSER->parse_file("../data/us/$session/rolls/$rid.xml")->documentElement;
 		$info = $roll->getAttribute("aye") . "-" . $roll->getAttribute("nay");
 		if ($roll->getAttribute("nv") + $roll->getAttribute("present") > 0) {
@@ -81,6 +91,7 @@ sub IndexBill {
 		close INFO;
 
 		$status->setAttribute("roll-info", $info);
+		}
 	}
 
 	my $title = GetBillDisplayTitle($bill, 0, 1);
@@ -102,6 +113,7 @@ sub IndexBill {
 	IndexBill2($session, $type, $number, $bill, "committees/committee", "committee", sub { $_[0]->getAttribute('subcommittee') eq "" ? $_[0]->getAttribute('name') : $_[0]->getAttribute('name') . ' -- ' . $_[0]->getAttribute('subcommittee') });
 	IndexBill2($session, $type, $number, $bill, 'sponsor/@id', "sponsor");
 	IndexBill2($session, $type, $number, $bill, 'cosponsors/cosponsor/@id', "cosponsor");
+	IndexBill2($session, $type, $number, $bill, 'actions/enacted[@type="public"]/@number', "publiclawnumber");
 
 	# Add any miscelleneous events
 

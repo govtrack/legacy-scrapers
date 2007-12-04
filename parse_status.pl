@@ -378,7 +378,7 @@ sub GovGetBill {
 				}
 
 			# senate vote
-			} elsif ($what =~ /(Passed Senate|Failed of passage in Senate|Resolution agreed to in Senate|Received in the Senate, considered, and agreed to|Submitted in the Senate, considered, and agreed to|Introduced in the Senate, read twice, considered, read the third time, and passed|Senate agreed to conference report|Cloture on the motion to proceed not invoked in Senate)(,?[\w\W]*,?) (without objection|by Unanimous Consent|by Voice Vote|by Yea-Nay( Vote)?\. \d+\s*-\s*\d+\. Record Vote (No|Number): \d+)/) {
+			} elsif ($what =~ /(Passed Senate|Failed of passage in Senate|Resolution agreed to in Senate|Received in the Senate, considered, and agreed to|Submitted in the Senate, considered, and agreed to|Introduced in the Senate, read twice, considered, read the third time, and passed|Senate agreed to conference report|Cloture \S*\s?on the motion to proceed .*?not invoked in Senate|Cloture on the bill not invoked in Senate)(,?[\w\W]*,?) (without objection|by Unanimous Consent|by Voice Vote|by Yea-Nay( Vote)?\. \d+\s*-\s*\d+\. Record Vote (No|Number): \d+)/) {
 				my $motion = $1;
 				my $passfail = $1;
 				my $junk = $2;
@@ -395,7 +395,7 @@ sub GovGetBill {
 				} else {
 					$votetype = "vote2";
 				}
-
+				
 				if ($what =~ /Record Vote (No|Number): (\d+)\./) {
 					$roll = $2;
 					$how = "roll";
@@ -406,6 +406,11 @@ sub GovGetBill {
 					$votenode = 'vote-aux';
 					$votetype = 'conference';
 				}
+				if ($motion =~ /Cloture/) {
+					$votenode = "vote-aux";
+					$votetype = "cloture";
+				}
+
 
 				if ($votenode eq 'vote') {
 					$STATUSNOW = "<$votetype $statusdateattrs where=\"s\" result=\"$passfail\" how=\"$how\" roll=\"$roll\"/>";
@@ -492,6 +497,19 @@ sub GovGetBill {
 
 	# TITLES
 
+	if ($titles eq "" || $titles =~ /\*NONE\*/) {
+		# There's some bug in THOMAS that titles aren't appearing on the All Information status page.
+		$URL =~ s/\@[\w\W]*$/\@\@\@T/;
+		sleep 1;
+		$response = $UA->get($URL);
+		if (!$response->is_success) {
+			warn "Could not fetch " .
+				"bill-titles($SESSION, $BILLTYPE, $BILLNUMBER) at $URL: " .
+            	$response->code . " " .
+                $response->message;
+			return; }
+		$titles = $response->content;
+	}
 	$titles =~ s/[\n\r]//g;
 	$titles =~ s/<\/?i>//gi;
 	while ($titles =~ m/<li>([\w\W]*?)( as [\w ]*)?:<br>([\w\W]+?)(<p>|$)/gi) {
@@ -820,6 +838,8 @@ sub ParseAmendment {
 	my $number = shift;
 	my $billtype = shift;
 	my $billnumber = shift;	
+	
+	if ($ENV{SKIP_AMENDMENTS}) { return; }
 
 	`mkdir -p ../data/us/$session/bills.amdt`;
 	my $fn = "../data/us/$session/bills.amdt/$chamber$number.xml";

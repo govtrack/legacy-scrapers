@@ -1,6 +1,13 @@
 use Time::Local;
 use DateTime;
 use Unicode::MapUTF8 qw(to_utf8 from_utf8 utf8_supported_charset);
+use POSIX qw(strftime);
+use Time::Local;
+use XML::LibXML;
+use LWP::UserAgent;
+
+$XMLPARSER = XML::LibXML->new();
+$UA = LWP::UserAgent->new(keep_alive => 2, timeout => 30, agent => "GovTrack.us", from => "operations@govtrack.us");
 
 %ChamberNameLong = ( s => 'Senate', h => 'House of Representatives' );
 %ChamberNameShort = ( s => 'Senate', h => 'House' );
@@ -419,8 +426,10 @@ sub ParseDateTimeValue {
 }
 sub DateTimeToDBString {
 	my ($year, $month, $date, $hour, $minute, $second) = ParseDateTimeValue($_[0]);
-	if (!defined($hour)) { return "$year-$month-$date"; }
-	return "$year-$month-$date $hour:$minute:$second";
+	if (!defined($hour)) {
+		return sprintf("%04d-%02d-%02d", $year, $month, $date);
+	}
+	return sprintf("%04d-%02d-%02d %02d:%02d:%02d", $year, $month, $date, $hour, $minute, $second);
 }
 	
 sub NodeListUnion {
@@ -544,3 +553,29 @@ sub fileage { # in days
            = stat($_[0]);
 	return (time - $mtime) / 60 / 60 / 24;
 }
+
+sub GetBill {
+	my ($session, $billtype, $billnumber) = @_;
+
+	if ($FILEBASE ne "") { chdir "$FILEBASE" . "gov"; }
+	my $f = "../data/us/$session/bills/$billtype$billnumber.xml";
+	if (!(-e $f)) { return undef; }
+	return $XMLPARSER->parse_file($f)->documentElement;
+}
+
+sub GetBillList {
+	my $SESSION = shift;
+	my @bills;
+
+	my $dir = "../data/us/$SESSION/bills";
+	
+	if ($FILEBASE ne "") { chdir "$FILEBASE" . "gov"; }
+	opendir D, $dir;
+	foreach my $d (readdir(D)) {
+		if ($d =~ /([a-z]+)(\d+)\.xml/) {
+			push @bills, [$SESSION, $1, $2, "$dir/$d"];
+		}
+	}
+	closedir D;
+	return @bills;
+}	

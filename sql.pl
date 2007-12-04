@@ -13,7 +13,7 @@ sub DBOpen { # ($dbname, $username, $password)
 
 	my $dsn = "DBI:mysql:$dbname";
 
-	$dbh = DBI->connect($dsn, $db_user_name, $db_password) || die "Connection to database failed."; 
+	$dbh = DBI->connect($dsn, $db_user_name, $db_password) || die "Connection to database failed: $DBI::errstr";
 	$dbh->{'mysql_enable_utf8'} = 1;
 
 	my $sth = $dbh->prepare('SET NAMES "UTF8"');
@@ -176,8 +176,9 @@ sub DBInsertUpdate { # (insert/update, $table, \@opts, \@specs, %values) => inse
 	my $valuestr;
 	foreach my $k (keys(%values)) {
 		if (defined($values{$k})) {
-			$values{$k} = DBEscape($values{$k});
-			push @valuelist, "$k = '$values{$k}'";
+			my $v = $values{$k};
+			$v = DBEscape($v);
+			push @valuelist, "$k = '$v'";
 		} else {
 			push @valuelist, "$k = NULL";
 		}
