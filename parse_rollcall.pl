@@ -614,6 +614,7 @@ sub WriteRoll {
 	}
 
 	IndexVote($SESSION, $id);
+	WriteStatus("Vote:$where", "Last fetched: $id");
 }
 
 sub MakeVoteXmlElement {

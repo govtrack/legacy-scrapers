@@ -36,12 +36,22 @@ sub RefreshBills {
 	foreach $bill_ (@bills) {
 		my $bill;
 		eval { $bill = GetBill(@{ $bill_ }); };
+		
+		# Failed to parse?
 		if ($@) {
 			print "$$bill_[0] $$bill_[1] $$bill_[2]:$@\n";
 			GovGetBill( $$bill_[0], $$bill_[1], $$bill_[2] );
 			next;
 		}
-		if (RefreshTest($bill, $xpath, $pattern)) {
+		
+		# The wrong bill is inside the file!
+		if ("$$bill_[1]$$bill_[0]-$$bill_[2]" ne $bill->findvalue('concat(@type,@session,"-",@number)')) {
+			print "Deleting $$bill_[1]$$bill_[0]-$$bill_[2] because the wrong bill is inside!\n";
+			unlink "../data/us/$session/bills/$$bill_[1]$$bill_[2].xml";
+			next;
+		}
+		
+		if ($xpath ne '' && RefreshTest($bill, $xpath, $pattern)) {
 			GovGetBill( $$bill_[0], $$bill_[1], $$bill_[2] );
 			$bill = GetBill(@{ $bill_ });
 			if (RefreshTest($bill, $xpath, $pattern)) {
@@ -378,7 +388,7 @@ sub GovGetBill {
 				}
 
 			# senate vote
-			} elsif ($what =~ /(Passed Senate|Failed of passage in Senate|Resolution agreed to in Senate|Received in the Senate, considered, and agreed to|Submitted in the Senate, considered, and agreed to|Introduced in the Senate, read twice, considered, read the third time, and passed|Senate agreed to conference report|Cloture \S*\s?on the motion to proceed .*?not invoked in Senate|Cloture on the bill not invoked in Senate)(,?[\w\W]*,?) (without objection|by Unanimous Consent|by Voice Vote|by Yea-Nay( Vote)?\. \d+\s*-\s*\d+\. Record Vote (No|Number): \d+)/) {
+			} elsif ($what =~ /(Passed Senate|Failed of passage in Senate|Resolution agreed to in Senate|Received in the Senate, considered, and agreed to|Submitted in the Senate, considered, and agreed to|Introduced in the Senate, read twice, considered, read the third time, and passed|Received in the Senate, read twice, considered, read the third time, and passed|Senate agreed to conference report|Cloture \S*\s?on the motion to proceed .*?not invoked in Senate|Cloture on the bill not invoked in Senate)(,?[\w\W]*,?) (without objection|by Unanimous Consent|by Voice Vote|by Yea-Nay( Vote)?\. \d+\s*-\s*\d+\. Record Vote (No|Number): \d+)/) {
 				my $motion = $1;
 				my $passfail = $1;
 				my $junk = $2;
@@ -757,7 +767,10 @@ sub GovGetBill {
 	$SUMMARY =~ s/&\#(\d+);/chr($1)/ge;
 	my $SUMMARY2 = HTMLify($SUMMARY);
 
-	open XML, ">", "~temp";
+	mkdir "../data/us/$SESSION/bills";
+	mkdir "../data/us/$SESSION/bills.summary";
+
+	open XML, ">$xfn";
 	print XML <<EOF;
 <bill session="$SESSION" type="$BILLTYPE" number="$BILLNUMBER" retreived_date="$now" updated="$updated">
 	<status>$STATUSNOW</status>
@@ -788,46 +801,14 @@ $amdts
 	<summary>
 	$SUMMARY2
 	</summary>
-EOF
-
-	if (0) {
-	foreach my $bs (@BILLSTATUSES) {
-		print "Fetching $SESSION:$BILLTYPE$BILLNUMBER text $bs\n" if (!$OUTPUT_ERRORS_ONLY);
-
-		sleep 1;
-		my $URL = "http://frwebgate.access.gpo.gov/cgi-bin/getdoc.cgi?dbname=" . $SESSION . "_cong_bills&docid=f:" . $BILLTYPE . $BILLNUMBER . $bs . ".txt";
-        	my $response = $UA->get($URL);
-	        if (!$response->is_success) {
-        	        die "Could not fetch " .
-                	"bill text ($SESSION, $BILLTYPE, $BILLNUMBER, $bs) at $URL: " .
-	                $response->code . " " .
-        	        $response->message; }
-        	$HTTP_BYTES_FETCHED += length($response->content);
-	        my $content = $response->content;
-
-		$content =~ s/^[^\n\r]*\s+//; # chop first line, leading spaces
-		$content =~ s/<PRE>//gi;
-		$content = HTMLify($content);
-		print XML "\t<text status=\"$bs\">$content</text>\n";
-	}
-	}
-
-
-print XML <<EOF;
-
 </bill>
 EOF
 	close XML;
-
-	mkdir "../data/us/$SESSION/bills";
-	mkdir "../data/us/$SESSION/bills.summary";
 
 	open SUMMARY, ">", "../data/us/$SESSION/bills.summary/$BILLTYPE$BILLNUMBER.summary.xml";
 	print SUMMARY FormatBillSummary($SUMMARY);
 	close SUMMARY;
 	
-	`mv '~temp' $xfn`;
-
 	IndexBill($SESSION, $BILLTYPE, $BILLNUMBER);
 }
 

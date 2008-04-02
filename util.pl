@@ -2,7 +2,6 @@ use Time::Local;
 use DateTime;
 use Unicode::MapUTF8 qw(to_utf8 from_utf8 utf8_supported_charset);
 use POSIX qw(strftime);
-use Time::Local;
 use XML::LibXML;
 use LWP::UserAgent;
 
@@ -579,3 +578,28 @@ sub GetBillList {
 	closedir D;
 	return @bills;
 }	
+
+sub WriteStatus {
+	my ($item, $descr) = @_;
+	
+	my $date = Now();
+	my $newline = "$item\t$date\t$descr\n";
+
+	my @items;
+	push @items, $newline;
+	
+	open STATUS, "<scraping_status.txt";
+	while (!eof(STATUS)) {
+		my $line = <STATUS>;
+		if ($line =~ /^$item\t/) { next; }
+		push @items, $line;
+	}
+	close STATUS;
+
+	open STATUS, ">scraping_status.txt";
+	for my $line (@items) {
+		print STATUS $line;
+	}
+	close STATUS;
+}
+

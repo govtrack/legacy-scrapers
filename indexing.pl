@@ -20,6 +20,8 @@ sub IndexBills {
 	#my $w = "session = $session";
 	#DBDelete(billstatus, [$w]);
 	#DBDelete(billindex, [$w]);
+	
+	$holdBillSummaryFileWrite = 1;
 
 	my @bills = GetBillList($session);
 	foreach my $b (@bills) {
@@ -29,6 +31,11 @@ sub IndexBills {
 		if ($@) { print "$$b[0]$$b[1]$$b[2]: $@\n"; }
 	}
 	DBClose();
+
+	if ($billSummaryFile) {
+		my $bsfn = "../data/us/$session/bills.index.xml";
+		$billSummaryFile->toFile($bsfn, 1);
+	}
 }
 
 sub IndexBill {
@@ -152,7 +159,7 @@ sub IndexBill {
 	$node->setAttribute('official-title', $officialtitle);
 	$node->setAttribute('last-action', $lastactiondate);
 	$node->setAttribute('status', $status->nodeName);
-	$billSummaryFile->toFile($bsfn, 1);
+	$billSummaryFile->toFile($bsfn, 1) if (!$holdBillSummaryFileWrite);
 }
 
 sub IndexBill2 {
@@ -199,6 +206,9 @@ sub IndexVote {
 		$result .= $xml->findvalue('@aye') . '-' . $xml->findvalue('@nay');
 		if ($xml->findvalue('@nv') + $xml->findvalue('@present') > 0) {
 			$result .= ', ' . ($xml->findvalue('@nv') + $xml->findvalue('@present')) . ' not voting';
+		}
+		if ($xml->findvalue('required') ne '1/2') {
+			$result .= ' (' . $xml->findvalue('required') . ' required)';
 		}
 	} else {
 		$result .= $xml->findvalue('@present') . ' present, '

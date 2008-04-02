@@ -45,6 +45,7 @@ sub GetThomasNames {
 		my $cct = 0;
 		while ($html =~ /<option value="\s*([^">]*)\{([hs])([a-z]+)([0-9]+)\}">-*.*<\/option>/g) {
 			my ($name, $ch, $id, $subid) = ($1, $2, $3, $4);
+			$name =~ s/  +/ /g;
 			if ($subid == 0) {
 				$Committee{"$ch$id"}{$session}{thomasname} = $name;
 			} else {
@@ -138,6 +139,7 @@ sub GetSenateCommittees {
 	
 			if ($line =~ /<pub_last>(.*)<\/pub_last>, <pub_first>(.*)<\/pub_first> \(<state>(.*)<\/state>\)(, <position>(.*)<\/position>)?/) {
 				my ($l, $f, $s, $p) = ($1, $2, $3, $5);
+				$p =~ s/ +$//;
 	
 				my $pid = PersonDBGetID(name => "$l, $f", title => "sen", state => "$s", when => "now");
 				if (!$pid) { warn "Unknown person: $l, $f ($s)"; next; }
@@ -190,7 +192,7 @@ sub GetHouseCommittees {
 	if (!$response->is_success) { warn "Could not get House committee list."; }
 	$html = $response->content;
 	
-	while ($html =~ /\/committee_info\/index\.html\?comcode=([A-Z]{3})00">(.*?)<\//g) {
+	while ($html =~ /\/committee_info\/index\.html\?comcode=([A-Z0]{3})00">(.*?)<\//g) {
 		my $housecode = $1;
 		my $name = $2;
 		
@@ -210,6 +212,7 @@ sub GetHouseCommittees {
 		if ($housecode eq 'HJL') { $ourcode = 'JSLC'; }
 		if ($housecode eq 'HJP') { $ourcode = 'JSPR'; }
 		if ($housecode eq 'HIT') { $ourcode = 'JSTX'; }
+		if ($housecode eq 'HM0') { $ourcode = 'HSHM'; }
 	
 		my $thomasname = $Committee{lc($ourcode)}{$SESSION}{thomasname};
 		if ($thomasname eq "") { print " Thomas Name not found ($ourcode).\n"; }
