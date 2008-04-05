@@ -40,6 +40,8 @@ sub IndexBills {
 
 sub IndexBill {
 	my ($session, $type, $number) = @_;
+	
+	if ($ENV{REMOTE_DB}) { return; }
 
 	my $w = "session = $session and type = '$type' and number = $number";
 	DBDelete(billstatus, [$w]);
@@ -180,7 +182,7 @@ sub IndexVotes {
 	my $update = $ARGV[2];
 	my $maintableonly = $ARGV[3];
 	if ($session eq "") { die "Give a session!"; }
-
+	
 	GovDBOpen();
 
 	my @votes = ScanDir("../data/us/$session/rolls");
@@ -198,6 +200,8 @@ sub IndexVote {
 	my $id = shift;
 	my $update = shift;
 	my $maintableonly = shift;
+
+	if ($ENV{REMOTE_DB}) { return; }
 
 	my $xml = $XMLPARSER->parse_file("../data/us/$session/rolls/$id.xml")->documentElement;
 

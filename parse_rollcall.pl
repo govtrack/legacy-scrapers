@@ -7,8 +7,13 @@ require "persondb.pl";
 require "db.pl";
 require "indexing.pl";
 
-require "../gis/loaddistricts_109.pl";
-require "../gis/loaddistricts_110.pl";
+if (-e '../gis/loaddistricts_109.pl') {
+	require "../gis/loaddistricts_109.pl";
+	require "../gis/loaddistricts_110.pl";
+} else {
+	print STDERR "Not loading GIS module...\n";
+	$SkipMaps = 1;
+}
 
 my $debug = 1;
 
@@ -605,7 +610,7 @@ sub WriteRoll {
 	
 	if ($fn !~ /\/(\w\d\d\d\d\-\d+)\.xml$/) { die $fn; }
 	my $id = $1;
-	if (!$ENV{NOMAP}) { MakeVoteMap($id); }
+	if (!$ENV{NOMAP} && !$SkipMaps) { MakeVoteMap($id); }
 
 	if (defined($BILL)) {
 		push @referencedbills, $BILL;

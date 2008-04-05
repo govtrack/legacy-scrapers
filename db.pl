@@ -4,7 +4,9 @@ require "sql.pl";
 
 sub GovDBOpen {
 	#      database,   username,   password
-	# database can be govtrack@govtrack.us for remote connections,
-	# when permitted
-	DBOpen("govtrack", "govtrack", "");
+	if (!$ENV{REMOTE_DB}) {
+		DBOpen("govtrack", "govtrack", "");
+	} else {
+		DBOpen("database=govtrack;host=govtrack.us", "govtrack_sandbox", "");
+	}
 }
