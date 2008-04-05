@@ -2,7 +2,7 @@
 --
 -- Host: localhost    Database: govtrack
 -- ------------------------------------------------------
--- Server version	5.0.27
+-- Server version	5.0.22
 
 /*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
 /*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
@@ -16,20 +16,23 @@
 /*!40111 SET @OLD_SQL_NOTES=@@SQL_NOTES, SQL_NOTES=0 */;
 
 --
--- Table structure for table `cdist_zipcode`
+-- Table structure for table `people_committees`
 --
 
-DROP TABLE IF EXISTS `cdist_zipcode`;
-CREATE TABLE `cdist_zipcode` (
-  `zipcode` int(11) NOT NULL default '0',
-  `state` char(2) NOT NULL default '',
-  `district` int(11) NOT NULL default '0',
-  `city` tinytext NOT NULL,
-  `latitude` double NOT NULL default '0',
-  `longitude` double NOT NULL default '0',
-  PRIMARY KEY  (`zipcode`),
-  KEY `STATEDIST` (`state`,`district`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1;
+DROP TABLE IF EXISTS `people_committees`;
+CREATE TABLE `people_committees` (
+  `people_committee_id` int(11) NOT NULL auto_increment,
+  `personid` int(11) NOT NULL default '0',
+  `committeeid` varchar(10) collate utf8_unicode_ci NOT NULL default '',
+  `type` text collate utf8_unicode_ci NOT NULL,
+  `name` text collate utf8_unicode_ci NOT NULL,
+  `subname` text collate utf8_unicode_ci,
+  `role` text collate utf8_unicode_ci,
+  `housecode` text collate utf8_unicode_ci NOT NULL,
+  `senatecode` text collate utf8_unicode_ci NOT NULL,
+  PRIMARY KEY  (`people_committee_id`),
+  KEY `personid` (`personid`)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
 
 --
 -- Table structure for table `people`
@@ -54,8 +57,25 @@ CREATE TABLE `people` (
   PRIMARY KEY  (`id`),
   UNIQUE KEY `bioguideid` (`bioguideid`),
   KEY `lastname` (`lastname`(30)),
-  KEY `middlename` (`middlename`(15))
-) ENGINE=MyISAM AUTO_INCREMENT=412251 DEFAULT CHARSET=utf8 COLLATE=utf8_bin;
+  KEY `middlename` (`middlename`(15)),
+  KEY `lastnameenc` (`lastnameenc`(15))
+) ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE=utf8_bin;
+
+--
+-- Table structure for table `committees`
+--
+
+DROP TABLE IF EXISTS `committees`;
+CREATE TABLE `committees` (
+  `id` varchar(10) collate utf8_unicode_ci NOT NULL default '',
+  `type` varchar(10) collate utf8_unicode_ci NOT NULL default '',
+  `parent` varchar(10) collate utf8_unicode_ci default NULL,
+  `displayname` text collate utf8_unicode_ci NOT NULL,
+  `thomasname` text collate utf8_unicode_ci NOT NULL,
+  `url` text collate utf8_unicode_ci,
+  PRIMARY KEY  (`id`),
+  UNIQUE KEY `thomasname` (`thomasname`(100),`parent`)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
 
 --
 -- Table structure for table `people_roles`
@@ -80,7 +100,23 @@ CREATE TABLE `people_roles` (
   PRIMARY KEY  (`personroleid`),
   KEY `personid` (`personid`),
   KEY `state` (`state`,`enddate`)
-) ENGINE=MyISAM AUTO_INCREMENT=41809 DEFAULT CHARSET=latin1;
+) ENGINE=MyISAM DEFAULT CHARSET=latin1;
+
+--
+-- Table structure for table `cdist_zipcode`
+--
+
+DROP TABLE IF EXISTS `cdist_zipcode`;
+CREATE TABLE `cdist_zipcode` (
+  `zipcode` int(11) NOT NULL default '0',
+  `state` char(2) NOT NULL default '',
+  `district` int(11) NOT NULL default '0',
+  `city` tinytext NOT NULL,
+  `latitude` double NOT NULL default '0',
+  `longitude` double NOT NULL default '0',
+  PRIMARY KEY  (`zipcode`),
+  KEY `STATEDIST` (`state`,`district`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1;
 
 --
 -- Table structure for table `people_votes`
@@ -89,45 +125,10 @@ CREATE TABLE `people_roles` (
 DROP TABLE IF EXISTS `people_votes`;
 CREATE TABLE `people_votes` (
   `personid` int(11) NOT NULL,
-  `voteid` varchar(9) collate utf8_unicode_ci NOT NULL,
+  `voteid` varchar(10) collate utf8_unicode_ci NOT NULL,
   `vote` enum('+','-','0','P') collate utf8_unicode_ci NOT NULL,
   PRIMARY KEY  (`personid`,`voteid`),
   KEY `SECONDARY` (`voteid`,`personid`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
-
---
--- Table structure for table `people_committees`
---
-
-DROP TABLE IF EXISTS `people_committees`;
-CREATE TABLE `people_committees` (
-  `people_committee_id` int(11) NOT NULL auto_increment,
-  `personid` int(11) NOT NULL default '0',
-  `committeeid` varchar(10) collate utf8_unicode_ci NOT NULL default '',
-  `type` text collate utf8_unicode_ci NOT NULL,
-  `name` text collate utf8_unicode_ci NOT NULL,
-  `subname` text collate utf8_unicode_ci,
-  `role` text collate utf8_unicode_ci,
-  `housecode` text collate utf8_unicode_ci NOT NULL,
-  `senatecode` text collate utf8_unicode_ci NOT NULL,
-  PRIMARY KEY  (`people_committee_id`),
-  KEY `personid` (`personid`)
-) ENGINE=MyISAM AUTO_INCREMENT=71636 DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
-
---
--- Table structure for table `committees`
---
-
-DROP TABLE IF EXISTS `committees`;
-CREATE TABLE `committees` (
-  `id` varchar(10) collate utf8_unicode_ci NOT NULL default '',
-  `type` varchar(10) collate utf8_unicode_ci NOT NULL default '',
-  `parent` varchar(10) collate utf8_unicode_ci default NULL,
-  `displayname` text collate utf8_unicode_ci NOT NULL,
-  `thomasname` text collate utf8_unicode_ci NOT NULL,
-  `url` text collate utf8_unicode_ci,
-  PRIMARY KEY  (`id`),
-  UNIQUE KEY `thomasname` (`thomasname`(100),`parent`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
 
@@ -139,4 +140,3 @@ CREATE TABLE `committees` (
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2007-05-10 13:14:32

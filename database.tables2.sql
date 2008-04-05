@@ -2,7 +2,7 @@
 --
 -- Host: localhost    Database: govtrack
 -- ------------------------------------------------------
--- Server version	5.0.27
+-- Server version	5.0.22
 
 /*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
 /*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
@@ -14,6 +14,26 @@
 /*!40014 SET @OLD_FOREIGN_KEY_CHECKS=@@FOREIGN_KEY_CHECKS, FOREIGN_KEY_CHECKS=0 */;
 /*!40101 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='NO_AUTO_VALUE_ON_ZERO' */;
 /*!40111 SET @OLD_SQL_NOTES=@@SQL_NOTES, SQL_NOTES=0 */;
+
+--
+-- Table structure for table `votes`
+--
+
+DROP TABLE IF EXISTS `votes`;
+CREATE TABLE `votes` (
+  `id` varchar(10) collate utf8_unicode_ci NOT NULL,
+  `date` datetime NOT NULL,
+  `description` text collate utf8_unicode_ci NOT NULL,
+  `result` text collate utf8_unicode_ci NOT NULL,
+  `billsession` int(11) default NULL,
+  `billtype` varchar(2) collate utf8_unicode_ci default NULL,
+  `billnumber` int(11) default NULL,
+  `amdtype` char(1) collate utf8_unicode_ci default NULL,
+  `amdnumber` int(11) default NULL,
+  PRIMARY KEY  (`id`),
+  KEY `bill` (`billsession`,`billtype`,`billnumber`),
+  KEY `date` (`date`)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
 
 --
 -- Table structure for table `billevents`
@@ -28,6 +48,21 @@ CREATE TABLE `billevents` (
   `eventxml` text collate utf8_unicode_ci NOT NULL,
   KEY `bill` (`session`,`type`,`number`),
   KEY `index` (`date`)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+
+--
+-- Table structure for table `billlinks`
+--
+
+DROP TABLE IF EXISTS `billlinks`;
+CREATE TABLE `billlinks` (
+  `session` int(11) NOT NULL default '0',
+  `type` varchar(2) collate utf8_unicode_ci NOT NULL default '',
+  `number` int(11) NOT NULL default '0',
+  `source` varchar(20) collate utf8_unicode_ci NOT NULL default '',
+  `url` text collate utf8_unicode_ci,
+  `excerpt` text collate utf8_unicode_ci NOT NULL,
+  PRIMARY KEY  (`session`,`type`,`number`,`source`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
 
 --
@@ -47,18 +82,17 @@ CREATE TABLE `billindex` (
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
 
 --
--- Table structure for table `billlinks`
+-- Table structure for table `billlinks2`
 --
 
-DROP TABLE IF EXISTS `billlinks`;
-CREATE TABLE `billlinks` (
+DROP TABLE IF EXISTS `billlinks2`;
+CREATE TABLE `billlinks2` (
   `session` int(11) NOT NULL default '0',
   `type` varchar(2) collate utf8_unicode_ci NOT NULL default '',
   `number` int(11) NOT NULL default '0',
-  `source` varchar(20) collate utf8_unicode_ci NOT NULL default '',
   `url` text collate utf8_unicode_ci,
-  `excerpt` text collate utf8_unicode_ci NOT NULL,
-  PRIMARY KEY  (`session`,`type`,`number`,`source`)
+  `title` text collate utf8_unicode_ci NOT NULL,
+  KEY `session` (`session`,`type`,`number`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
 
 --
@@ -93,26 +127,6 @@ CREATE TABLE `billtitles` (
   KEY `title` (`title`(60)),
   KEY `bill` (`session`,`type`,`number`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
-
---
--- Table structure for table `votes`
---
-
-DROP TABLE IF EXISTS `votes`;
-CREATE TABLE `votes` (
-  `id` varchar(9) collate utf8_unicode_ci NOT NULL,
-  `date` datetime NOT NULL,
-  `description` text collate utf8_unicode_ci NOT NULL,
-  `result` text collate utf8_unicode_ci NOT NULL,
-  `billsession` int(11) default NULL,
-  `billtype` varchar(2) collate utf8_unicode_ci default NULL,
-  `billnumber` int(11) default NULL,
-  `amdtype` char(1) collate utf8_unicode_ci default NULL,
-  `amdnumber` int(11) default NULL,
-  PRIMARY KEY  (`id`),
-  KEY `bill` (`billsession`,`billtype`,`billnumber`),
-  KEY `date` (`date`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
 
 /*!40101 SET SQL_MODE=@OLD_SQL_MODE */;
@@ -123,4 +137,3 @@ CREATE TABLE `votes` (
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2007-05-10 13:14:32
