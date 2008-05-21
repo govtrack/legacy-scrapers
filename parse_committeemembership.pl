@@ -213,6 +213,7 @@ sub GetHouseCommittees {
 		if ($housecode eq 'HJP') { $ourcode = 'JSPR'; }
 		if ($housecode eq 'HIT') { $ourcode = 'JSTX'; }
 		if ($housecode eq 'HM0') { $ourcode = 'HSHM'; }
+		if ($housecode eq 'HIG') { $ourcode = 'HLIG'; }
 	
 		my $thomasname = $Committee{lc($ourcode)}{$SESSION}{thomasname};
 		if ($thomasname eq "") { print " Thomas Name not found ($ourcode).\n"; }
@@ -318,6 +319,7 @@ sub GetHouseCommittees {
 					
 					
 					my $pid = PersonDBGetID(name => $pname, title => "rep", state => "$state", district => $dist, when => "now", nameformat => 'firstlast');
+					if ($pname eq "Mary Bono Mack") { $pid = 400039; }
 					if (!$pid) { warn "Unknown person: $pname ($statedist)"; next; }
 		
 					DBInsert(people_committees,
