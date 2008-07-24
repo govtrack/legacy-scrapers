@@ -30,7 +30,7 @@ sub Main2 {
 }
 
 sub RefreshBills {
-	my ($session, $xpath, $pattern) = @_;
+	my ($session, $xpath, $pattern, $dontwarnifunchanged) = @_;
 	
 	my @bills = GetBillList($session);
 	foreach $bill_ (@bills) {
@@ -53,9 +53,11 @@ sub RefreshBills {
 		
 		if ($xpath ne '' && RefreshTest($bill, $xpath, $pattern)) {
 			GovGetBill( $$bill_[0], $$bill_[1], $$bill_[2] );
-			$bill = GetBill(@{ $bill_ });
-			if (RefreshTest($bill, $xpath, $pattern)) {
-				print "XPath expression still matches.\n";
+			if (!$dontwarnifunchanged) {
+				$bill = GetBill(@{ $bill_ });
+				if (RefreshTest($bill, $xpath, $pattern)) {
+					print "$$bill_[0]$$bill_[1]$$bill_[2]: XPath expression still matches.\n";
+				}
 			}
 		}
 	}
@@ -185,7 +187,7 @@ sub GovGetAllBills {
 
 		#if (!($bb[0] eq "sj" || $bb[0] eq "sc" || $bb[0] eq "hj" || $bb[0] eq "hc")) { next; }
 		#if ($bb[0] =~ "^h") { next; }
-
+		
 		GovGetBill($SESSION, $bb[0], $bb[1], $SKIPIFEXISTS, $billstatuses{$bb[0] . $bb[1]});
 	}
 }
@@ -201,7 +203,7 @@ sub GovGetBill {
 
 	my $xfn = "../data/us/$SESSION/bills/$BILLTYPE$BILLNUMBER.xml";
 	if ($SKIPIFEXISTS && -e $xfn) { return; }
-	if ($ENV{SKIP_RECENT} && -M $xfn < 1) { return; }
+	if ($ENV{SKIP_RECENT} && -M $xfn < 4) { return; }
 
 	sleep 1;
 	print "Fetching $SESSION:$BILLTYPE$BILLNUMBER\n" if (!$OUTPUT_ERRORS_ONLY);
@@ -254,6 +256,7 @@ sub GovGetBill {
 	my $lastcommittee = undef;
 	my $titles = undef;
 	my $backup_title;
+	my $wasvetoed = 0;
 
 	my $titlesmode = 0;
 
@@ -332,7 +335,8 @@ sub GovGetBill {
 			if ($action_substate == 2) { $action_state = [$when, $action_committee, $action_subcommittee]; }
 
 			# house vote
-			if ($what =~ /(On passage|On motion to suspend the rules and pass the bill|On motion to suspend the rules and agree to the resolution|On motion to suspend the rules and pass the resolution|On agreeing to the resolution|On agreeing to the conference report|Two-thirds of the Members present having voted in the affirmative the bill is passed)(, the objections of the President to the contrary notwithstanding.?)?(, as amended)? (Passed|Failed|Agreed to|Rejected) (by voice vote|without objection|by (the Yeas and Nays|recorded vote)((:)? \(2\/3 required\))?: \d+ - \d+(, \d+ Present)? \(Roll no\. \d+\))/i) {
+			$what =~ s/, the Passed/, Passed/g; # 106 h4733 and others
+			if ($what =~ /(On passage|On motion to suspend the rules and pass the bill|On motion to suspend the rules and agree to the resolution|On motion to suspend the rules and pass the resolution|On agreeing to the resolution|On agreeing to the conference report|Two-thirds of the Members present having voted in the affirmative the bill is passed,?)(, the objections of the President to the contrary notwithstanding.?)?(, as amended)? (Passed|Failed|Agreed to|Rejected) (by voice vote|without objection|by (the Yeas and Nays|recorded vote)((:)? \(2\/3 required\))?: \d+ - \d+(, \d+ Present)? \(Roll no\. \d+\))/i) {
 				my $motion = $1;
 				my $isoverride = $2;
 				my $passfail = $4;
@@ -342,6 +346,13 @@ sub GovGetBill {
 				
 				if ($passfail =~ /Pass/ || $passfail =~ /Agreed/) { $passfail = "pass"; }
 				else { $passfail = "fail"; }
+				
+				if ($wasvetoed && $motion =~ /Two-thirds of the Members present/) {
+					$isoverride = 1;
+				}
+				if ($wasvetoed && !$isoverride) {
+					warn "A vote after a veto?? Maybe we need to parse this as an override.";
+				}
 
 				if ($isoverride) {
 					$votetype = "override";
@@ -444,6 +455,7 @@ sub GovGetBill {
 			} elsif ($what =~ /Vetoed by President/) {
 				$STATUSNOW = "<veto $statusdateattrs />";
 				push @ACTIONS, [$action_state, 2, "vetoed", $what, { @axndateattrs }];
+				$wasvetoed = 1;
 			} elsif ($what =~ /Became (Public|Private) Law No: ([\d\-]+)\./) {
 				$STATUSNOW = "<enacted $statusdateattrs />";
 				push @ACTIONS, [$action_state, 2, "enacted", $what, { @axndateattrs, type => lc($1), number => $2 }];
@@ -562,6 +574,7 @@ sub GovGetBill {
 		my $cline = shift(@content);
 		if ($summarymode == 1) {
 			if ($cline =~ /<HR/i) { $summarymode = 0; next; }
+			if ($cline =~ /THOMAS Home/) { last; }
 			$cline =~ s/<a[^>]*>([\w\W]*?)<\/a>/$1/ig;
 			$SUMMARY .= $cline . "\n";
 			next;

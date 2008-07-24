@@ -175,9 +175,12 @@ sub DBInsertUpdate { # (insert/update, $table, \@opts, \@specs, %values) => inse
 	my @valuelist;
 	my $valuestr;
 	foreach my $k (keys(%values)) {
+		if ($k eq "SQL_NO_ESCAPE") { next; }
 		if (defined($values{$k})) {
 			my $v = $values{$k};
-			$v = DBEscape($v);
+			if (!$values{SQL_NO_ESCAPE}) {
+				$v = DBEscape($v);
+			}
 			push @valuelist, "$k = '$v'";
 		} else {
 			push @valuelist, "$k = NULL";
@@ -199,6 +202,14 @@ sub DBInsertUpdate { # (insert/update, $table, \@opts, \@specs, %values) => inse
 	if ($command eq "update") { return $n; }
 	if ($n == 0) { return -1; }
 	return $dbh->{'mysql_insertid'};	
+}
+
+sub DBExecute {
+	my $cmd = shift;
+	my $sth = $dbh->prepare($cmd);
+	my $n = $sth->execute() or die "Statement had error.";
+	return $n;
+	#return $dbh->{'mysql_insertid'};	
 }
 
 sub DBEscape {

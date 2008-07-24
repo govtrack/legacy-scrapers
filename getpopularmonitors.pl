@@ -16,16 +16,25 @@ sub GetPopularMonitors {
 	my %billcount;
 	
 	# clear the updating field of the monitor matrix
-	DBUpdate(monitormatrix, [], countupdating => 0);
-	
+	DBUpdate(monitormatrix, [], countupdating => 0, tfidfupdating => 0);
+
+	# get a count of subscribers for each monitor, which we need
+	# to build the TFIDF.
+	foreach my $monitors (DBSelectVector('users', ['monitors'])) {
+		foreach my $mon (split(/,/, $monitors)) {
+			if ($mon eq "") { next; }
+			if ($mon =~ /^(misc|option|blog|user|meta):/) { next; }
+			$Monitors{$mon}++;
+		}
+	}
+			
+	# Build the bill (on disk) and monitor (in database) matrix.
 	foreach my $monitors (DBSelectVector('users', ['monitors'])) {
 		my @mons;
 		my @bills;
 		foreach my $mon (split(/,/, $monitors)) {
 			if ($mon eq "") { next; }
 			if ($mon =~ /^(misc|option|blog|user|meta):/) { next; }
-			$Monitors{$mon}++;
-			
 			push @mons, $mon;
 			if ($mon =~ /^bill:(.*)/) {
 				push @bills, $1;
@@ -37,7 +46,8 @@ sub GetPopularMonitors {
 			for my $m1 (@mons) {
 				for my $m2 (@mons) {
 					if ($m1 eq $m2) { next; }
-					DBExecute("INSERT INTO monitormatrix (monitor1, monitor2, count, countupdating) VALUES (\"$m1\", \"$m2\", 0, 1) ON DUPLICATE KEY UPDATE countupdating=countupdating+1");
+					my $idf = 1.0 / $Monitors{$m2};
+					DBExecute("INSERT INTO monitormatrix (monitor1, monitor2, count, countupdating, tfidf, tfidfupdating) VALUES (\"$m1\", \"$m2\", 0, 1, 0, $idf) ON DUPLICATE KEY UPDATE countupdating=countupdating+1, tfidfupdating=tfidfupdating+$idf");
 				}
 			}
 		}
@@ -68,8 +78,8 @@ sub GetPopularMonitors {
 
 	# copy over the countupdating column into the count column
 	DBDelete(monitormatrix, [DBSpecLE(countupdating, 2)]);
-	DBExecute("UPDATE monitormatrix SET count=countupdating");
-	DBExecute("UPDATE monitormatrix SET countupdating=0");
+	DBExecute("UPDATE monitormatrix SET count=countupdating, tfidf=tfidfupdating");
+	DBExecute("UPDATE monitormatrix SET countupdating=0, tfidfupdating=0");
 	
 	open DATA, ">../data/misc/monitors.billmatrix.xml";
 	print DATA "<bill-matrix>\n";

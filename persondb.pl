@@ -93,6 +93,7 @@ sub PersonDBGetID {
 
 	my @matches1;
 	my @matches2;
+	my @matches3;
 	my $matches2score;
 	my $match;
 
@@ -231,9 +232,10 @@ sub PersonDBGetID {
 		push @fntests, [$$match{middlename}] if ($$match{middlename} ne "");
 		
 		my $fnmatch = 0;
+		my $matchtest;
 		foreach my $fntest (@fntests) {
 			my $ml = fntestcmp(\@fnames, $fntest);
-			if ($ml > $fnmatch) { $fnmatch = $ml; }
+			if ($ml > $fnmatch) { $fnmatch = $ml; $matchtest = $fntest; }
 			#print "$$match{id} $ml " . join("--", @fnames) . " ?  " . join("--", @{$fntest}) . "\n";
 		}
 
@@ -242,10 +244,11 @@ sub PersonDBGetID {
 
 		if ($matches2score < $fnmatch) { @matches2 = (); }
 		push @matches2, $$match{id};
+		push @matches3, "$$match{id}--" . join("/", @{$matchtest});
 		$matches2score = $fnmatch;
 	}
 
-	if (scalar(@matches2) > 1) { warn "Multiple people match " . join(", ", @_) . ": " . join(", ", @matches2); }
+	if (scalar(@matches2) > 1) { warn "Multiple people match " . join(", ", @_) . ": " . join(", ", @matches3); }
 	if (scalar(@matches2) == 1) { return $matches2[0]; }
 
 	return undef;
@@ -259,10 +262,12 @@ sub fntestcmp {
 		$test[$i] =~ s/(\.)([^\s|])/$1 $2/g; # 'C.A.' => 'C.', 'A.'
 		splice(@test, $i, 1, split(/\s+/, $test[$i]));
 	}
+	
+	my $nmatch = 0;
 
 	for (my $i = 0; $i < scalar(@test); $i++) {
 		if ($test[$i] eq "") { next; }
-		if ($i >= scalar(@person)) { return $i; }
+		if ($i >= scalar(@person)) { return $nmatch; }
 
 		my $f = 0;
 		foreach my $t (split(/\|/, lc($test[$i]))) {
@@ -274,12 +279,12 @@ sub fntestcmp {
 				 && ($t eq $$sn[0] || $t eq $$sn[1])) { $f = 1; last; }
 			}
 		}
-		if ($f == 1) { next; }
+		if ($f == 1) { $nmatch++; next; }
 
 		return 0;	
 	}
 
-	return scalar(@test);
+	return $nmatch;
 }
 
 sub ParseSuffix {

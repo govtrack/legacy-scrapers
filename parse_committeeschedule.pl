@@ -197,8 +197,8 @@ sub FetchSenateCommitteeSchedule {
 	
 	my $doc = $XMLPARSER->parse_string($response->content);
 	for my $n ($doc->findnodes('css_meetings_scheduled/meeting[not(cmte_code="")]')) {
-		my $committee = $n->findvalue('committee');
-		my $subcommittee = $n->findvalue('sub_cmte');
+		my $committee = $n->findvalue('committee[position()=1]');
+		my $subcommittee = $n->findvalue('sub_cmte[position()=1]');
 		my $date = $n->findvalue('date');
 		my $time = $n->findvalue('time');
 		my $room = $n->findvalue('room');

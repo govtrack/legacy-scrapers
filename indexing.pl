@@ -205,6 +205,8 @@ sub IndexVote {
 
 	my $xml = $XMLPARSER->parse_file("../data/us/$session/rolls/$id.xml")->documentElement;
 
+	# Compose a description of the result.
+	
 	my $result = $xml->findvalue('result') . " ";
 	if ($xml->findvalue('@aye') + $xml->findvalue('@nay') > 0) {
 		$result .= $xml->findvalue('@aye') . '-' . $xml->findvalue('@nay');
@@ -219,11 +221,49 @@ sub IndexVote {
 			. $xml->findvalue('@nv') . ' absent';
 	}
 	
+	# Basic information to put into the record.
+	
 	my %values = (
 		id => $id,
 		date => DateTimeToDBString($xml->findvalue('@datetime')),
-		description => $xml->findvalue('question'),
 		result => $result);
+	
+	# Make a nicer description.
+	
+	my $chamber;
+	if ($id =~ /^h/) { $chamber = 'House'; } else { $chamber = 'Senate'; }
+	
+	my $description = $xml->findvalue('question');
+	
+	$description =~ s/^(On Passage|On Passage of the Bill|On the Concurrent Resolution|On the Joint Resolution): (.*)/On Passage - $chamber - $2/;
+	$description =~ s/^On Passage of the Bill \((.*?)\s*\)$/On Passage - $chamber - $1/;
+	$description =~ s/^(On the Resolution|On Agreeing to the Resolution): (.*)/On Passage - $2/;
+	$description =~ s/^(On the Conference Report|On Agreeing to the Conference Report): (.*)/On the Conference Report - $2/;
+	$description =~ s/^(Passage, Objections of the President Notwithstanding|Passage, Objections of the President Not Withstanding): (.*)/Veto Override - $chamber - $2/;
+	$description =~ s/^(On Motion to Suspend the Rules and (Pass|Agree)(, as Amended)?): (.*)/On Passage - $chamber - $4 - Under Suspension of the Rules/;
+	$description =~ s/^On Overriding the Veto \(Shall (.*) Pass, the objections of the President of the United States to the contrary notwithstanding\?\s*\)/Veto Override - $chamber - $1/;
+	$description =~ s/^On the Amendment \((.*?)\s*\)$/On the $1/;
+	$description =~ s/^On Agreeing to the Amendment: (.*)$/On the $1/;
+	$description =~ s/^On the (Cloture )?Motion \((.*?)\s*\)$/$2/;
+	$description =~ s/^On the Nomination \(Confirmation (.*?)\s*\)$/Confirmation of $1/;
+	$description =~ s/^Call of the House: QUORUM$/Call of the House - Quorum Call/;
+	$description =~ s/^Call in Committee: QUORUM$/Call in Committee - Quorum Call/;
+	$description =~ s/^On Motion to Adjourn: ADJOURN$/On Motion to Adjourn/;
+	$description =~ s/^On Approving the Journal: JOURNAL$/On Approving the Journal/;
+	
+	my $bn = $xml->findvalue('bill/@number');
+	if ($bn) {
+		$description =~ s/H R $bn/H.R. $bn/;
+		$description =~ s/H RES $bn/H.Res. $bn/;
+		$description =~ s/H CON RES $bn/H.Con.Res. $bn/;
+	}
+	
+	#binmode(STDOUT, ":utf8");
+	#print "$id $description\n";
+	
+	$values{description} = $description;
+	
+	# Identify related bill and amendment.
 
 	if ($xml->findvalue('bill/@session')) {
 		$values{'billsession'} = $xml->findvalue('bill/@session');

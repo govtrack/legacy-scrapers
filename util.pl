@@ -6,6 +6,8 @@ use XML::LibXML;
 use LWP::UserAgent;
 
 $XMLPARSER = XML::LibXML->new();
+$XMLPARSER->expand_entities(0);
+
 $UA = LWP::UserAgent->new(keep_alive => 2, timeout => 30, agent => "GovTrack.us", from => "operations@govtrack.us");
 
 %ChamberNameLong = ( s => 'Senate', h => 'House of Representatives' );
