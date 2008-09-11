@@ -4,6 +4,7 @@
 
 require "general.pl";
 require "billdiff.pl";
+require "db.pl";
 
 my $gpolist;
 
@@ -93,6 +94,8 @@ $HTMLPARSER->recover(1);
 
 if ($ARGV[0] eq "FULLTEXT") { shift(@ARGV); GetBillFullText(@ARGV); }
 if ($ARGV[0] eq "GENERATE") { shift(@ARGV); CreateGeneratedBillTexts(@ARGV); }
+if ($ARGV[0] eq "SIMHASH") { shift(@ARGV); ComputeSimHashes(@ARGV); }
+if ($ARGV[0] eq "FINDSIMS") { shift(@ARGV); FindSimilarBills(@ARGV); }
 
 1;
 
@@ -230,9 +233,9 @@ sub FetchBillTextLoadGPOList {
 	my $session = shift;
 	if (defined($gpolist)) { return; }
 
-	# Cache the list for 12 hours.
+	# Cache the list for 3 hours.
 	my @gpostat = stat("tmp.gpolist-$session");
-	if ($gpostat[9] > time-60*60*12) {
+	if ($gpostat[9] > time-60*60*3) {
 		$gpolist = `cat tmp.gpolist-$session`;
 		return;
 	}
@@ -506,7 +509,7 @@ sub CreateGeneratedBillTexts {
 	my $onlythisbill = shift;
 
 	print "Generating bill diffs and enhanced HTML...\n" if (!$OUTPUT_ERRORS_ONLY);
-
+	
 	my $billdir = "../data/us/$session/bills";
 	my $textdir = "../data/us/bills.text/$session";
 
@@ -547,10 +550,10 @@ sub CreateGeneratedBillTexts {
 			close G;
 
 			$pstatus = $status;
+
 		}
-	}
+    }
 	closedir BILLS;
-	
 }
 
 sub GetBillStatusList {
@@ -558,4 +561,121 @@ sub GetBillStatusList {
 	if ($type =~ /^h/) { return (@statuslist_h, @statuslist_s, @statuslist_s2, @statuslist_h2, @statuslist_all); }
 	if ($type =~ /^s/) { return (@statuslist_s, @statuslist_h, @statuslist_h2, @statuslist_s2, @statuslist_all); }
 	die;
+}
+
+sub ComputeSimHashes {
+	my $session = shift;
+	my $onlythisbill = shift;
+
+	GovDBOpen();
+
+	print "Computing simhashes...\n" if (!$OUTPUT_ERRORS_ONLY);
+	
+	my $billdir = "../data/us/$session/bills";
+	my $textdir = "../data/us/bills.text/$session";
+
+	opendir BILLS, "$billdir";
+	foreach my $bill (sort(readdir(BILLS))) {
+		if ($bill !~ /([a-z]+)(\d+)\.xml/) { next; }
+		my ($type, $number) = ($1, $2);
+		if ($onlythisbill ne "" && $onlythisbill ne "ALL" && $onlythisbill ne "$type$number") { next; }
+		foreach my $status (GetBillStatusList($type)) {
+			my $infile = "$textdir/$type/$type$number$status.html";
+			if (!-e $infile) { next; }
+
+			# Compute simhash. Get the text content of the original
+			# HTML version, put that in a file, and run a simhash
+			# program. Then put the result into a database.
+			my $doc = $XMLPARSER->parse_file($infile);
+			open DAT, ">/tmp/govtrack-simhash.txt";
+			binmode(DAT, ":utf8");
+			print DAT $doc->textContent;
+			close DAT;
+			my $hash = `simhash/shash-0.3/shash /tmp/govtrack-simhash.txt`;
+			#unlink "/tmp/govtrack-simhash.txt";
+
+			if ($hash !~ /^((....)(....)(....)(....)) /) { die; }
+			my ($hash, $b1, $b2, $b3, $b4) = ($1, $2, $3, $4, $5);
+			for my $b ($b1, $b2, $b3, $b4) {
+				$b = hex($b);
+			}
+			
+			print "$infile $hash\n";
+
+			DBDelete(billtextsimhash, ["session=$session and type='$type' and number='$number' and status='$status'"]);
+			DBInsert(billtextsimhash,
+				session => $session, type => $type, number => $number, status => $status,
+				simhash => $hash, block1 => $b1, block2 => $b2, block3 => $b3, block4 => $b4);
+		}
+	}
+	
+	DBClose();
+}
+
+sub FindSimilarBills {
+	my ($session, $type, $number, $status2) = @_;
+	
+	GovDBOpen();
+	
+	# Collect the comparisons for all of the bill versions we are comparing to.
+	my @hashes;
+	my $comp = '0';
+	for my $status (GetBillStatusList($type)) {
+		if ($status2 && $status2 ne $status) { next; }
+		
+		# Get the hash for this bill text.
+		my ($hash, $b1, $b2, $b3, $b4) = DBSelectFirst(billtextsimhash,
+			["simhash, block1, block2, block3, block4"],
+			["session=$session and type='$type' and number='$number' and status='$status'"]);
+		if (!$hash) { next; }
+		
+		push @hashes, $hash;
+		
+		$comp .= " OR (block1=$b1 and block2=$b2 and block3=$b3) or (block1=$b1 and block2=$b2 and block4=$b4) or (block1=$b1 and block3=$b3 and block4=$b4) or (block2=$b2 and block3=$b3 and block4=$b4)";
+	}
+	
+	# Look for similar hashes, with at most 16 bits difference
+	# (16 bit hamming distance), which means three of the four
+	# blocks must match, from any of the bill versions.
+	# We ignore status.
+	my $results = DBSelect(billtextsimhash,
+		["session, type, number, status, simhash"],
+		#["(block1=$b1 and block2=$b2 and block3=$b3) or (block1=$b1 and block2=$b2 and block4=$b4) or (block1=$b1 and block3=$b3 and block4=$b4) or (block2=$b2 and block3=$b3 and block4=$b4)"]
+		[$comp]
+		);
+		
+	# Filter out the results that have a hamming distance
+	# greater than 5.
+	my %matches;
+	for my $r (@$results) {
+		my ($s, $t, $n, $st, $h) = @$r;
+		if ($matches{"$s$t$n"}) { next; }
+		
+		my $mind = 64;
+		my $minh;
+		for my $hash (@hashes) {
+			my $d = hamming($hash, $h);
+			if ($d < $mind) { $mind = $d; $minh = $hash; }
+		}
+		if ($mind > 4) { next; }
+		
+		$matches{"$s$t$n"} = 1;
+		print "$s $t$n $mind $minh/$h\n";
+	}
+	
+	DBClose();
+}
+
+sub hamming {
+	my ($a, $b) = @_;
+	my $d = 0;
+	if (length($a) != length($b)) { die; }
+	for (my $i = 0; $i < length($a); $i+=2) {
+		my $a1 = hex(substr($a, $i, 2));
+		my $b1 = hex(substr($b, $i, 2));
+		for (my $j = 0; $j < 8; $j++) {
+			$d += ((($a1 & 1<<$j) != ($b1 & 1<<$j)) ? 1 : 0);
+		}
+	}
+	return $d;
 }
