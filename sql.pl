@@ -117,6 +117,12 @@ sub DBSelect { # ([distinct], [first|all], [hash], $table, \@fields, \@specs, $l
 	}
 }
 
+sub DBExecuteSelect {
+	my $sth = $dbh->prepare($_[0]);
+	$sth->execute();
+	return $sth->fetchall_arrayref();
+}
+
 sub DBDelete { # ($table, \@specs)
 	if (!defined($dbh)) { die "Database not open."; }
 	
