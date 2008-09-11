@@ -1,8 +1,8 @@
--- MySQL dump 10.10
+-- MySQL dump 10.11
 --
 -- Host: localhost    Database: govtrack
 -- ------------------------------------------------------
--- Server version	5.0.22
+-- Server version	5.0.45
 
 /*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
 /*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
@@ -14,26 +14,6 @@
 /*!40014 SET @OLD_FOREIGN_KEY_CHECKS=@@FOREIGN_KEY_CHECKS, FOREIGN_KEY_CHECKS=0 */;
 /*!40101 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='NO_AUTO_VALUE_ON_ZERO' */;
 /*!40111 SET @OLD_SQL_NOTES=@@SQL_NOTES, SQL_NOTES=0 */;
-
---
--- Table structure for table `votes`
---
-
-DROP TABLE IF EXISTS `votes`;
-CREATE TABLE `votes` (
-  `id` varchar(10) collate utf8_unicode_ci NOT NULL,
-  `date` datetime NOT NULL,
-  `description` text collate utf8_unicode_ci NOT NULL,
-  `result` text collate utf8_unicode_ci NOT NULL,
-  `billsession` int(11) default NULL,
-  `billtype` varchar(2) collate utf8_unicode_ci default NULL,
-  `billnumber` int(11) default NULL,
-  `amdtype` char(1) collate utf8_unicode_ci default NULL,
-  `amdnumber` int(11) default NULL,
-  PRIMARY KEY  (`id`),
-  KEY `bill` (`billsession`,`billtype`,`billnumber`),
-  KEY `date` (`date`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
 
 --
 -- Table structure for table `billevents`
@@ -48,21 +28,6 @@ CREATE TABLE `billevents` (
   `eventxml` text collate utf8_unicode_ci NOT NULL,
   KEY `bill` (`session`,`type`,`number`),
   KEY `index` (`date`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
-
---
--- Table structure for table `billlinks`
---
-
-DROP TABLE IF EXISTS `billlinks`;
-CREATE TABLE `billlinks` (
-  `session` int(11) NOT NULL default '0',
-  `type` varchar(2) collate utf8_unicode_ci NOT NULL default '',
-  `number` int(11) NOT NULL default '0',
-  `source` varchar(20) collate utf8_unicode_ci NOT NULL default '',
-  `url` text collate utf8_unicode_ci,
-  `excerpt` text collate utf8_unicode_ci NOT NULL,
-  PRIMARY KEY  (`session`,`type`,`number`,`source`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
 
 --
@@ -82,6 +47,21 @@ CREATE TABLE `billindex` (
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
 
 --
+-- Table structure for table `billlinks`
+--
+
+DROP TABLE IF EXISTS `billlinks`;
+CREATE TABLE `billlinks` (
+  `session` int(11) NOT NULL default '0',
+  `type` varchar(2) collate utf8_unicode_ci NOT NULL default '',
+  `number` int(11) NOT NULL default '0',
+  `source` varchar(20) collate utf8_unicode_ci NOT NULL default '',
+  `url` text collate utf8_unicode_ci,
+  `excerpt` text collate utf8_unicode_ci NOT NULL,
+  PRIMARY KEY  (`session`,`type`,`number`,`source`)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+
+--
 -- Table structure for table `billlinks2`
 --
 
@@ -92,6 +72,7 @@ CREATE TABLE `billlinks2` (
   `number` int(11) NOT NULL default '0',
   `url` text collate utf8_unicode_ci,
   `title` text collate utf8_unicode_ci NOT NULL,
+  `added` timestamp NOT NULL default CURRENT_TIMESTAMP on update CURRENT_TIMESTAMP,
   KEY `session` (`session`,`type`,`number`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
 
@@ -127,6 +108,71 @@ CREATE TABLE `billtitles` (
   KEY `title` (`title`(60)),
   KEY `bill` (`session`,`type`,`number`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+
+--
+-- Table structure for table `votes`
+--
+
+DROP TABLE IF EXISTS `votes`;
+CREATE TABLE `votes` (
+  `id` varchar(10) collate utf8_unicode_ci NOT NULL,
+  `date` datetime NOT NULL,
+  `description` text collate utf8_unicode_ci NOT NULL,
+  `result` text collate utf8_unicode_ci NOT NULL,
+  `billsession` int(11) default NULL,
+  `billtype` varchar(2) collate utf8_unicode_ci default NULL,
+  `billnumber` int(11) default NULL,
+  `amdtype` char(1) collate utf8_unicode_ci default NULL,
+  `amdnumber` int(11) default NULL,
+  PRIMARY KEY  (`id`),
+  KEY `bill` (`billsession`,`billtype`,`billnumber`),
+  KEY `date` (`date`)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+
+--
+-- Table structure for table `linksubmission`
+--
+
+DROP TABLE IF EXISTS `linksubmission`;
+CREATE TABLE `linksubmission` (
+  `date` timestamp NOT NULL default CURRENT_TIMESTAMP on update CURRENT_TIMESTAMP,
+  `bill` tinytext NOT NULL,
+  `url` text NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8;
+
+--
+-- Table structure for table `monitormatrix`
+--
+
+DROP TABLE IF EXISTS `monitormatrix`;
+CREATE TABLE `monitormatrix` (
+  `monitor1` text NOT NULL,
+  `monitor2` text NOT NULL,
+  `count` int(11) NOT NULL,
+  `tfidf` float NOT NULL,
+  `countupdating` int(11) NOT NULL,
+  `tfidfupdating` float NOT NULL,
+  PRIMARY KEY  (`monitor1`(127),`monitor2`(127)),
+  KEY `monitor1` (`monitor1`(11),`count`)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8;
+
+--
+-- Table structure for table `questions`
+--
+
+DROP TABLE IF EXISTS `questions`;
+CREATE TABLE `questions` (
+  `id` int(11) NOT NULL auto_increment,
+  `question` int(11) NOT NULL,
+  `submissiondate` datetime NOT NULL,
+  `status` enum('new','approved','rejected') NOT NULL default 'new',
+  `approvaldate` datetime NOT NULL,
+  `text` text NOT NULL,
+  `topic` text NOT NULL,
+  PRIMARY KEY  (`id`),
+  KEY `question` (`question`),
+  KEY `topic` (`topic`(16))
+) ENGINE=MyISAM AUTO_INCREMENT=1377 DEFAULT CHARSET=utf8;
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
 
 /*!40101 SET SQL_MODE=@OLD_SQL_MODE */;
@@ -137,3 +183,4 @@ CREATE TABLE `billtitles` (
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
+-- Dump completed on 2008-09-11 15:25:27
