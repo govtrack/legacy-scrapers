@@ -3,6 +3,8 @@
 use XML::LibXML;
 use Algorithm::Diff;
 
+use utf8; # because of our empty node sentinel as a literal utf8 string
+
 my $XMLPARSER = XML::LibXML->new();
 
 if ($ARGV[0] eq "BILLDIFF") {
@@ -121,7 +123,31 @@ sub ComputeBillTextChanges {
 	my $file1 = $XMLPARSER->parse_file("$prefix$status1.gen.html");
 	my $file2 = $XMLPARSER->parse_file("$prefix$status2.html");
 	$XMLPARSER->keep_blanks(1);
+
+	# Remove change history from left document.
+	foreach my $node ($file1->findnodes("//inserted")) {
+		while ($node->lastChild) {
+			my $x = $node->lastChild;
+			$x->unbindNode;
+			$node->parentNode->insertAfter($x, $node);
+		}
+		$node->unbindNode;
+	}
+	foreach my $node ($file1->findnodes("//removed")) {
+		$node->unbindNode;
+	}
+	foreach my $cnode ($file1->findnodes("//changed")) {
+		foreach my $node ($cnode->findnodes("changed-to")) {
+			while ($node->firstChild) {
+				my $x = $node->firstChild;
+				$x->unbindNode;
+				$cnode->parentNode->insertAfter($x, $cnode);
+			}
+		}
+		$cnode->unbindNode;
+	}
 	
+	# Add node ids to the right document.
 	AddIdAttributesToBillText($file2, "t0:" . $status2);
 
 	# For the purposes of diffs, we'll remove all lines in the new
@@ -149,6 +175,23 @@ sub ComputeBillTextChanges {
 		}
 	}
 	
+	# Importantly, there cannot be any empty nodes in the document, since
+	# when we flatten it to text these nodes won't correspond to anything.
+	# We will add <temporary-empty-node-filler>!</temporary-empty-node-filler>
+	# inside, where ! is a special character we don't expect to find elsewhere.
+	# It should be a single character so that it is indivisible. When processing
+	# the changes, it must not be possible to separate this from the containing
+	# element.
+	my $empty_node_filler_tag = 'temporary-empty-node-filler';
+	my $empty_node_sentinel = "‽";
+	foreach my $node ($file1->findnodes("//*"), $file2->findnodes("//*")) {
+		if ($node->textContent eq '') {
+			my $w = $node->ownerDocument->createElement($empty_node_filler_tag);
+			$w->appendText($empty_node_sentinel);
+			$node->appendChild($w);
+		}
+	}
+	
 	my ($text1, $text1length, %nodeStart1) = SerializeDocument($file1, 0);
 	my ($text2, $text2length, %nodeStart2) = SerializeDocument($file2, 0);
 	
@@ -170,17 +213,12 @@ sub ComputeBillTextChanges {
 	$lastnode->parentNode->insertAfter($final_blank, $lastnode);
 	$nodeStart2{length($text2)} = $final_blank;
 
-	# Mark up the differences in the right document, pulling in text from the left document.
+	#binmode(STDOUT, ":utf8");
+	#print "0:" . length($text1) . "\n";
+	#print "0:" . length($text2) . "\n";
+	#print "\n";
 
-	# Some code for using Algorithm::Diff. But I guess I found it was too slow or didn't work well.
-	#my $lcslen = Algorithm::Diff::LCS_length($list1, $list2);
-	#my $diff = Algorithm::Diff->new($list1, $list2);
-	#while ($diff->Next()) {
-	#	if ($diff->Same()) { next; }
-	#	my $oldstart_ = $$wordStarts1[$diff->Min(1)];
-	#	my $newstart_ = $$wordStarts2[$diff->Min(2)];
-	#	my $oldstring_ = join('', $diff->Items(1));
-	#	my $newstring_ = join('', $diff->Items(2));
+	# Mark up the differences in the right document, pulling in text from the left document.
 
 	my $diffsize = 0;
 	my $diffdenominator = length($text2);
@@ -202,7 +240,7 @@ sub ComputeBillTextChanges {
 		my $newend = (defined($7) ? $7-1 : $newstart);
 
 		if ($changetype eq 'a') { $oldend = $oldstart - 1; }
-		if ($changetype eq 'd') { $newend = $newstart - 1; }
+		if ($changetype eq 'd') { $newstart++; $newend = $newstart - 1; }
 		
 		# Convert the word units into character units. Concatenate the
 		# words in the ranges on the old and new sides, and get the
@@ -214,6 +252,10 @@ sub ComputeBillTextChanges {
 		
 		$oldstart = $$wordStarts1[$oldstart];
 		$newstart = $$wordStarts2[$newstart];
+		
+		#print "$oldstart: $oldstring\n";
+		#print "$newstart: $newstring\n";
+		#print "\n";
 
 		# note total character changes
 		if (length($oldstring) > length($newstring)) {
@@ -223,8 +265,6 @@ sub ComputeBillTextChanges {
 			$diffsize += length($newstring);
 		}
 		
-		#print "$oldstart_:$oldend_ $newstart_:$newend_ $oldstring_ $newstring_\n";
-
 		# Process any common region up to this point, and then have it skip the uncommon region in this block.
 		@last_corresp = ProcessCorrespondences(@last_corresp, $oldstart, $newstart, \%nodeStart1, \%nodeStart2, length($oldstring), length($newstring));
 
@@ -270,9 +310,13 @@ sub ComputeBillTextChanges {
 		# is confined enough that we know how the parts correspond. Otherwise,
 		# we wouldn't know how to match up the structure of the left and right
 		# sides.
+		# Don't do this if an empty node sentinel is found because then we are
+		# dealing with structure, not text.
 		if ($oldstring ne '' && $newstring ne ''
 			&& length($oldstring) <= length($leftnode->textContent)
-			&& length($newstring) <= length($rightnode->textContent)) {
+			&& length($newstring) <= length($rightnode->textContent)
+			&& $oldstring !~ /$empty_node_sentinel/
+			&& $newstring !~ /$empty_node_sentinel/) {
 			
 			# The left and right portions might be less than a whole text node.
 			# This time we split the nodes but hold onto the portions before the split.
@@ -354,13 +398,24 @@ sub ComputeBillTextChanges {
 				# Loop invariant: We're at the start of a text node, $rightnode.
 				if (length($newstring) < length($rightnode->textContent)) {
 					# Our change doesn't go to the end of this text node.
-					# Split the node and wrap the left portion, and we're done.
 
+					# Split the node.
 					($rightnode, $rightnode_dummy) = SplitNode($rightnode, length($newstring), $newstart+length($newstring), \%nodeStart2);
-					my $insnode = $rightnode->ownerDocument->createElement('inserted');
-					$rightnode->replaceNode($insnode);
-					$insnode->appendChild($rightnode);
-					last;
+					
+					# If this is to the right of an insertion we've already processed,
+					# include the node to the left.
+					if ($rightnode->previousSibling && $rightnode->previousSibling->nodeName eq 'inserted') {
+						my $p = $rightnode->previousSibling;
+						$rightnode->unbindNode;
+						$p->appendChild($rightnode);
+					} else {
+						my $insnode = $rightnode->ownerDocument->createElement('inserted');
+						$rightnode->replaceNode($insnode);
+						$insnode->appendChild($rightnode);
+					}
+					
+					# No more to process.
+					$newstring = '';
 
 				} else {
 					# This change goes at least as far as this text node. Try to wrap higher structure
@@ -372,10 +427,18 @@ sub ComputeBillTextChanges {
 						$rightnode = $rightnode->parentNode;
 					}
 					
-					# Wrap the node.
-					my $insnode = $rightnode->ownerDocument->createElement('inserted');
-					$rightnode->replaceNode($insnode);
-					$insnode->appendChild($rightnode);
+					# If this is to the right of an insertion we've already processed,
+					# include the node to the left.
+					if ($rightnode->previousSibling && $rightnode->previousSibling->nodeName eq 'inserted') {
+						my $p = $rightnode->previousSibling;
+						$rightnode->unbindNode;
+						$p->appendChild($rightnode);
+					} else {
+						# Wrap the node.
+						my $insnode = $rightnode->ownerDocument->createElement('inserted');
+						$rightnode->replaceNode($insnode);
+						$insnode->appendChild($rightnode);
+					}
 
 					# Advance past whatever we processed. Move the character position.
 					$newstart += length($rightnode->textContent);
@@ -399,6 +462,11 @@ sub ComputeBillTextChanges {
 
 	# Process any correspondences after the last change set.
 	@last_corresp = ProcessCorrespondences(@last_corresp, $text1length, $text2length, \%nodeStart1, \%nodeStart2, 0, 0);
+	
+	# Remove empty node filler tags.
+	foreach my $n ($file2->findnodes('//' . $empty_node_filler_tag)) {
+		$n->unbindNode();
+	}
 	
 	# Merge almost-consecutive change nodes sparated only by white space
 	foreach my $n ($file2->findnodes('//changed')) {
@@ -436,11 +504,10 @@ sub ComputeBillTextChanges {
 sub SerializeDocument {
 	my $node = shift;
 	my $start = shift;
-
+	
 	if (ref($node) eq 'XML::LibXML::Text') {
 		return ($node->nodeValue, $start+length($node->nodeValue), $start, $node);
 	} else {
-		if ($node->nodeName eq 'removed' || $node->nodeName eq 'changed-from') { return ("", $start); }
 		my $text;
 		my @nodeStarts;
 		foreach my $n ($node->childNodes) {
@@ -489,7 +556,7 @@ sub MakeWordList {
 	@words = @w2;
 	
 	my @wordStarts = (0);
-	for ($i = 1; $i < scalar(@words); $i++) {
+	for ($i = 1; $i <= scalar(@words); $i++) {
 		$wordStarts[$i] = $wordStarts[$i-1] + length($words[$i-1]);
 	}
 	return ([@words], [@wordStarts]);
@@ -508,7 +575,7 @@ sub WriteDiffTextToFile {
 	binmode(F, ":utf8");
 	while (scalar(@_)) {
 		my $a = shift(@_);
-		$a =~ s/[\r\n]/===GOVTRACK=NEWLINE===/g;
+		$a =~ s/[\r\n]/===EMBEDDED=NEWLINE===/g;
 		$a =~ s/^ +//;  # don't let changes in whitespace
 		$a =~ s/ +$//;  # have a big effect
 		$a =~ s/ +/ /;
