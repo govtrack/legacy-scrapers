@@ -37,6 +37,7 @@ CREATE TABLE `people` (
   `bioguideid` varchar(7) character set latin1 NOT NULL default 'UNKNOWN',
   `pvsid` int(11) default NULL,
   `fecid` char(9) collate utf8_bin default NULL,
+  `metavidid` tinytext collate utf8_bin,
   PRIMARY KEY  (`id`),
   UNIQUE KEY `bioguideid` (`bioguideid`),
   KEY `lastname` (`lastname`(30)),
@@ -126,4 +127,4 @@ CREATE TABLE `committees` (
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2008-09-11 15:25:27
+-- Dump completed on 2008-10-30 12:40:02
