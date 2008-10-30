@@ -244,7 +244,7 @@ sub GovGetBill {
 	my $INTRODUCED2 = undef;
 	my @ACTIONS = ();
 	my @COMMITTEES = ();
-	my @COSPONSORS = ();
+	my %COSPONSORS = ();
 	my $COSPONSORS_MISSING = 0;
 	my @RELATEDBILLS = ();
 	my @TITLES = ();
@@ -441,7 +441,7 @@ sub GovGetBill {
 				
 				if ($roll != 0) { GetSenateVote($SESSION, SubSessionFromYear(YearFromDateTime($when)), YearFromDateTime($when), $roll, 1); }
 
-			} elsif ($what =~ /Placed on (the )?([\w ]+) Calendar( under ([\w ]+))?[,\.] Calendar No\. (\d+)\.|Committee Agreed to Seek Consideration Under Suspension of the Rules|Ordered to be Reported/) {
+			} elsif ($what =~ /Placed on (the )?([\w ]+) Calendar( under ([\w ]+))?[,\.] Calendar No\. (\d+)\.|Committee Agreed to Seek Consideration Under Suspension of the Rules|Ordered to be Reported/i) {
 				if ($STATUSNOW =~ /^<introduced/) {
 					$STATUSNOW = "<calendar $statusdateattrs />";
 				}
@@ -487,20 +487,30 @@ sub GovGetBill {
 			}
 
 		# COSPONSORS
-		} elsif ($cline =~ /<br><a href=[^>]+>(Rep|Sen) ([\w\W]+)<\/a> \[([A-Z\d\-]+)\] - (\d\d?\/\d\d?\/\d\d\d\d)/i) {
+		} elsif ($cline =~ /<br><a href=[^>]+>(Rep|Sen) ([\w\W]+)<\/a> \[([A-Z\d\-]+)\] - (\d\d?\/\d\d?\/\d\d\d\d)(\(withdrawn - (\d\d?\/\d\d?\/\d\d\d\d)\))?/i) {
 			# Wish I could easily get the date of the cosponsorship,
 			# but it's on the next line.
 			my $t = $1;
 			my $n = $2;
 			my $s = $3;
 			my $d = $4;
-
+			my $withdrawndate = $6;
+			
 			my $i = PersonDBGetID(title => $t, name => $n, state => $s, when => ParseTime($d));
 			if (!defined($i)) {
 				warn "parsing bill $BILLTYPE$SESSION-$BILLNUMBER: Unknown person: $t, $n, $s";
 				$COSPONSORS_MISSING = 1;
 			}
-			else { push @COSPONSORS, $i; }
+			else {
+				if (!$COSPONSORS{$i}) {
+					# If we've already seen this cosponsor, then it's
+					# because he rejoined after withdrawing.
+					$COSPONSORS{$i}{added} = ParseDateTime($d);
+					if ($withdrawndate) {
+						$COSPONSORS{$i}{removed} = ParseDateTime($withdrawndate);
+					}
+				}
+			}
 
 		# TITLES
 		} elsif ($cline =~ /<a name="titles">/i) {
@@ -706,8 +716,10 @@ sub GovGetBill {
 
 	my @cos;
 	my $cos2;
-	foreach $c (@COSPONSORS) {
-		push @cos, "\t\t<cosponsor id=\"$c\" />";
+	foreach $c (keys(%COSPONSORS)) {
+		my $j = "joined=\"$COSPONSORS{$c}{added}\"";
+		my $r = ($COSPONSORS{$c}{removed} ? " withdrawn=\"$COSPONSORS{$c}{removed}\"" : '');
+		push @cos, "\t\t<cosponsor id=\"$c\" $j$r/>";
 	}
 	$cos2 = join("\n", @cos);
 	if ($COSPONSORS_MISSING) { $COSPONSORS_MISSING = ' missing-unrecognized-person="1"'; } else { $COSPONSORS_MISSING = ''; }
