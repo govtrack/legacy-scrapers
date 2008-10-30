@@ -543,7 +543,9 @@ sub CreateGeneratedBillTexts {
 			$g =~ s/(-{80})-*/$1/g;
 			$g =~ s/([^\s<>]{80})/$1 /g;
 
-			$g =~ s/((\d+) U\.S\.C\. (\d+))/<usc-reference title="$2" section="$3">$1<\/usc-reference>/g;
+			# mark up U.S.C. references
+			$g =~ s/((\d[0-9A-Za-z\-]*) U\.S\.C\. (\d[0-9A-Za-z\-]*)((\s*\(\w+\))*))/usctag($1, $2, $3, $4)/eg;
+			$g =~ s/(Section (\d[0-9A-Za-z\-]*)((\s*\(\w+\))*) of title (\S+), United States Code)/usctag($1, $5, $2, $3)/egi;
 			
 			open G, ">$genfile";
 			print G $g;
@@ -678,4 +680,17 @@ sub hamming {
 		}
 	}
 	return $d;
+}
+
+sub usctag {
+	my ($text, $title, $section, $paragraph) = @_;
+	return "<usc-reference title=\"$title\" section=\"$section\" paragraph=\"" . splitUSCGraphId($paragraph) . "\">$text<\/usc-reference>"
+}
+
+sub splitUSCGraphId {
+	my $x = shift;
+	my @xx = split(/[()\s]+/, $x);
+	if ($xx[0] eq '') { shift(@xx); }
+	if ($xx[-1] eq '') { pop(@xx); }
+	return join("_", @xx);
 }
