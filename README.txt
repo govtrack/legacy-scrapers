@@ -27,6 +27,10 @@ A quick way to install them all would be to run as root:
 You'll need the (non-Perl) GD image library development files
 installed first.
 
+Some other modules may still need to be installed (DateTime::Locale, DBD::mysql, perhaps others).  Running the script (see below) will tell you if it is missing any dependancies, which can then be installed with cpan.
+
+If you are using Cygwin, see here http://search.cpan.org/dist/DBD-mysql/lib/DBD/mysql/INSTALL.pod#Windows/CygWin  
+http://mail.python.org/pipermail/python-dev/2003-July/036932.html
 
 Setting Up A Database
 ---------------------
