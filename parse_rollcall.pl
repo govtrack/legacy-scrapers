@@ -47,10 +47,8 @@ sub DownloadRollCallVotesAll {
 
 	# Download house roll call votes
 	my $URL = "http://clerk.house.gov/evs/$YEAR/index.asp";
-	my $response = $UA->get($URL);
-	if (!$response->is_success) { die "Could not fetch house rollcall list at $URL: " . $response->code . " " . $response->message; }
-	$HTTP_BYTES_FETCHED += length($response->content);
-	my $content = $response->content;
+	my $content = Download($URL);
+	if (!$content) { return; }
 	if ($content =~ /vote.asp\?year=$YEAR\&rollnumber=(\d+)/) {
 		my $maxHRoll = $1;
 		for (my $i = 1; $i <= $maxHRoll; $i++) {
@@ -62,10 +60,8 @@ sub DownloadRollCallVotesAll {
 	
 	# Download all of the senate roll call votes
 	$URL = "http://www.senate.gov/legislative/LIS/roll_call_lists/vote_menu_$SESSION" . "_" . "$SUBSESSION.htm";
-	$response = $UA->get($URL);
-	if (!$response->is_success) { die "Could not fetch senate rollcall list at $URL: " . $response->code . " " . $response->message; }
-	$HTTP_BYTES_FETCHED += length($response->content);
-	my $content = $response->content;
+	my $content = Download($URL);
+	if (!$content) { return; }
 	if ($content =~ /Unspecified/) { die "Senate vote list has an 'Unspecified' vote."; }
 	if ($content =~ /roll_call_vote_cfm\.cfm\?congress=$SESSION\&session=$SUBSESSION\&vote=(\d+)/) {
 		my $maxSRoll = $1;
@@ -276,17 +272,10 @@ sub GetSenateVote {
 
 	my $ROLL2 = sprintf("%05d", $ROLL);
 
-	sleep 1;
 	print "Fetching Senate roll $SESSION-$SUBSESSION $ROLL\n" if (!$OUTPUT_ERRORS_ONLY);
 	my $URL = "http://www.senate.gov/legislative/LIS/roll_call_lists/roll_call_vote_cfm.cfm?congress=$SESSION&session=$SUBSESSION&vote=$ROLL2";
-	my $response = $UA->get($URL);
-	if (!$response->is_success) {
-		die "Could not fetch " .
-			"senate rollcall vote at $URL: " .
-			$response->code . " " .
-			$response->message; }
-	$HTTP_BYTES_FETCHED += length($response->content);
-	my $content = $response->content;
+	my $content = Download($URL);
+	if (!$content) { return; }
 	if ($content !~ /Question/) { warn "Vote not found on senate website: $URL"; return; }
 	my @contentlines = split(/[\n\r]+/, $content);
 
@@ -421,18 +410,11 @@ sub GetHouseVote {
 
 	if ($fn eq "../data/us/110/rolls/h2007-2.xml") { return 0; } # not aye-nay
 
-	sleep 1;
 	print "Fetching House roll $SESSION-$YEAR $ROLL\n" if (!$OUTPUT_ERRORS_ONLY);
 	my $roll2 = sprintf("%03d", $ROLL);
 	my $URL = "http://clerk.house.gov/evs/$YEAR/roll$roll2.xml";
-	my $response = $UA->get($URL);
-	if (!$response->is_success) {
-		die "Could not fetch " .
-			"house rollcall vote at $URL: " .
-			$response->code . " " .
-			$response->message; }
-	$HTTP_BYTES_FETCHED += length($response->content);
-	my $content = $response->content;
+	my $content = Download($URL);
+	if (!$content) { return; }
 
 	$content =~ s/<!DOCTYPE .*?>//;
 
@@ -657,7 +639,6 @@ sub RemapVotes {
 			if ($skipifexists && -e $f2) { next; }
 			#if (-e $f2 && fileage($f2) < 1) { next; }
 			MakeVoteMap($f);
-			sleep 1;
 		}
 	}
 	closedir D;

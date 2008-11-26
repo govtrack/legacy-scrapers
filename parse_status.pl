@@ -144,27 +144,10 @@ sub GovGetAllBills {
 	my $SKIPIFEXISTS = shift;
 	my $content;
 
-	if (1) {
-		my $URL;
-		if ($SESSION =~ /^http/) {
-			$URL = $SESSION;
-			$URL =~ /(\d\d\d)_cong_bills/;
-			$SESSION = $1;
-		} else {
-			$URL = "http://frwebgate.access.gpo.gov/cgi-bin/BillBrowse.cgi?dbname=" . $SESSION . "_cong_bills&wrapperTemplate=all" . $SESSION . "bills_wrapper.html&billtype=all";
-		}
-		print $URL . "\n";
-	        my $response = $UA->get($URL);
-        	if (!$response->is_success) {
-	                die "Could not fetch " .
-        	        "bill list at $URL: " .
-                	$response->code . " " .
-	                $response->message; }
-                $HTTP_BYTES_FETCHED += length($response->content);
-		$content = $response->content;
-	} else {
-		$content = `cat data/bills$SESSION`;
-	}
+	my $URL = "http://frwebgate.access.gpo.gov/cgi-bin/BillBrowse.cgi?dbname=" . $SESSION . "_cong_bills&wrapperTemplate=all" . $SESSION . "bills_wrapper.html&billtype=all";
+	print $URL . "\n";
+	$content = Download($URL);
+	if (!$content) { return; }
 
 	my %billstatuses = ();
 	my @bills = ();
@@ -205,7 +188,6 @@ sub GovGetBill {
 	if ($SKIPIFEXISTS && -e $xfn) { return; }
 	if ($ENV{SKIP_RECENT} && -M $xfn < 4) { return; }
 
-	sleep 1;
 	print "Fetching $SESSION:$BILLTYPE$BILLNUMBER\n" if (!$OUTPUT_ERRORS_ONLY);
 
 	my $BILLTYPE2 = $BILLTYPE;
@@ -218,16 +200,8 @@ sub GovGetBill {
 	my $now = time;
 	my $updated = Now();
 
-	my $response = $UA->get($URL);
-	if (!$response->is_success) {
-		warn "Could not fetch " .
-		"bill($SESSION, $BILLTYPE, $BILLNUMBER) at $URL: " .
-                $response->code . " " .
-                $response->message;
-		return; }
-
-	$HTTP_BYTES_FETCHED += length($response->content);
-	my $content = $response->content;
+	my $content = Download($URL);
+	if (!$content) { return; }
 	$content =~ s/\n\r/\n/g;
 	$content =~ s/\r/ /g; # amazing, stray carriage returns
 	
@@ -532,15 +506,7 @@ sub GovGetBill {
 	if ($titles eq "" || $titles =~ /\*NONE\*/) {
 		# There's some bug in THOMAS that titles aren't appearing on the All Information status page.
 		$URL =~ s/\@[\w\W]*$/\@\@\@T/;
-		sleep 1;
-		$response = $UA->get($URL);
-		if (!$response->is_success) {
-			warn "Could not fetch " .
-				"bill-titles($SESSION, $BILLTYPE, $BILLNUMBER) at $URL: " .
-            	$response->code . " " .
-                $response->message;
-			return; }
-		$titles = $response->content;
+		$titles = Download($URL);
 	}
 	$titles =~ s/[\n\r]//g;
 	$titles =~ s/<\/?i>//gi;
@@ -567,19 +533,10 @@ sub GovGetBill {
 	my $SUMMARY = undef;
 
 	$URL =~ s/\@[\w\W]*$/\@\@\@D\&summ2=m\&/;
-	sleep 1;
-	$response = $UA->get($URL);
-	if (!$response->is_success) {
-		warn "Could not fetch " .
-		"bill-summary($SESSION, $BILLTYPE, $BILLNUMBER) at $URL: " .
-                $response->code . " " .
-                $response->message;
-		return; }
-	$content = $response->content;
+	$content = Download($URL);
 	$content =~ s/\n\r/\n/g;
 	$content =~ s/\r/ /g; # amazing, stray carriage returns
 	@content = split(/\n+/, $content);
-	$HTTP_BYTES_FETCHED += length($response->content);
 	while (scalar(@content) > 0) {
 		my $cline = shift(@content);
 		if ($summarymode == 1) {
@@ -595,16 +552,9 @@ sub GovGetBill {
 
 	# GET COMMITTEES
 
-	sleep 1;
 	$URL = "http://thomas.loc.gov/cgi-bin/bdquery/z?d$SESSION:$BILLTYPE2$BILLNUMBER:\@\@\@C";
-	$response = $UA->get($URL);
-	if (!$response->is_success) {
-		die "Could not fetch " .
-		"bill-committees($SESSION, $BILLTYPE, $BILLNUMBER) at $URL: " .
-                $response->code . " " .
-                $response->message; }
-	$HTTP_BYTES_FETCHED += length($response->content);
-	@content = split(/[\n\r]+/, $response->content);
+	$content = Download($URL);
+	@content = split(/[\n\r]+/, $content);
 	foreach $c (@content) {
 		if ($c =~ /<a href="\/cgi-bin\/bdquery(tr)?\/R\?[^"]+">([\w\W]*)<\/a>\s*<\/td><td width="65\%">([\w\W]+)<\/td><\/tr>/i) {
  			my $c = $2;
@@ -623,16 +573,9 @@ sub GovGetBill {
 
 	# GET CRS TERMS
 
-	sleep 1;
 	$URL = "http://thomas.loc.gov/cgi-bin/bdquery/z?d$SESSION:$BILLTYPE2$BILLNUMBER:\@\@\@J&summ2=m&";
-	$response = $UA->get($URL);
-	if (!$response->is_success) {
-		die "Could not fetch " .
-		"crs($SESSION, $BILLTYPE, $BILLNUMBER) at $URL: " .
-                $response->code . " " .
-                $response->message; }
-	$HTTP_BYTES_FETCHED += length($response->content);
-	@content = split(/[\n\r]+/, $response->content);
+	$content = Download($URL);
+	@content = split(/[\n\r]+/, $content);
 	foreach $c (@content) {
 		if ($c =~ /\@FIELD\(FLD001\+\@4/i ) {
 			$c =~ /<a[^>]+>([\w\W]+)<\/a>/i;
@@ -645,16 +588,9 @@ sub GovGetBill {
 
 	# GET RELATED BILLS
 
-	sleep 1;
 	$URL = "http://thomas.loc.gov/cgi-bin/bdquery/z?d$SESSION:$BILLTYPE2$BILLNUMBER:\@\@\@K";
-	$response = $UA->get($URL);
-	if (!$response->is_success) {
-		die "Could not fetch " .
-		"bill-relatedbills($SESSION, $BILLTYPE, $BILLNUMBER) at $URL: " .
-                $response->code . " " .
-                $response->message; }
-	$HTTP_BYTES_FETCHED += length($response->content);
-	@content = split(/[\n\r]+/, $response->content);
+	$content = Download($URL);
+	@content = split(/[\n\r]+/, $content);
 	foreach $c (@content) {
 		if ($c =~ /<tr><td width="150"><a href="\/cgi-bin\/bdquery(tr)?\/z\?d(\d\d\d):\w+\d\d\d\d\d:">$BillPattern<\/a><\/td><td>([^<]+)<\/td><\/tr>/i) {
 			my ($s, $t, $n, $r) = ($2, $3, $4, $5);
@@ -680,16 +616,9 @@ sub GovGetBill {
 
 	# GET AMENDMENTS
 
-	sleep 1;
 	$URL = "http://thomas.loc.gov/cgi-bin/bdquery/z?d$SESSION:$BILLTYPE2$BILLNUMBER:\@\@\@A";
-	$response = $UA->get($URL);
-	if (!$response->is_success) {
-		die "Could not fetch " .
-		"amendments($SESSION, $BILLTYPE, $BILLNUMBER) at $URL: " .
-                $response->code . " " .
-                $response->message; }
-	$HTTP_BYTES_FETCHED += length($response->content);
-	@content = split(/[\n\r]+/, $response->content);
+	$content = Download($URL);
+	@content = split(/[\n\r]+/, $content);
 	foreach $c (@content) {
 		if ($c =~ /<a href="\/cgi-bin\/bdquery\/z\?d$SESSION:(HZ|SP)\d+:">/i ) {
 			$c =~ s/<P><\/div>//g;
@@ -850,22 +779,13 @@ sub ParseAmendment {
 	`mkdir -p ../data/us/$session/bills.amdt`;
 	my $fn = "../data/us/$session/bills.amdt/$chamber$number.xml";
 
-	sleep 1;
 	print "Fetching amendment $session:$chamber$number\n" if (!$OUTPUT_ERRORS_ONLY);
 
 	my $URL = "http://thomas.loc.gov/cgi-bin/bdquery/z?d$session:$chamber$char$number:";
 
 	my $now = time;
 	my $updated = Now();
-	my $response = $UA->get($URL);
-	if (!$response->is_success) {
-		warn "Could not fetch $URL" .
-                $response->code . " " .
-                $response->message;
-		return; }
-
-	$HTTP_BYTES_FETCHED += length($response->content);
-	my $content = $response->content;
+	my $content = Download($URL);
 	$content =~ s/\r//g;
 	
 	my $sequence = '';

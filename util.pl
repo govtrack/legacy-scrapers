@@ -4,6 +4,9 @@ use Unicode::MapUTF8 qw(to_utf8 from_utf8 utf8_supported_charset);
 use POSIX qw(strftime);
 use XML::LibXML;
 use LWP::UserAgent;
+use Digest::MD5 qw(md5 md5_hex md5_base64);
+use IO::Compress::Gzip qw(gzip $GzipError);
+use IO::Uncompress::Gunzip qw(gunzip $GunzipError);
 
 $XMLPARSER = XML::LibXML->new();
 $XMLPARSER->expand_entities(0);
@@ -164,14 +167,14 @@ sub SubSessionFromDate {
 sub YearFromDate {
 	my $date = shift;
 	my ($sec,$min,$hour,$mday,$mon,$year,$wday,$yday,$isdst)
-		= localtime($date);  
+		= localtime($date);
 	return $year += 1900;
 }
 
 sub YMDFromDate {
 	my $date = shift;
 	my ($sec,$min,$hour,$mday,$mon,$year,$wday,$yday,$isdst)
-		= localtime($date);  
+		= localtime($date);
 	return ($year+1900, $mon+1, $mday);
 }
 
@@ -213,6 +216,7 @@ sub GetBillDisplayTitle {
 	my $bill = shift;
 	my $dotrim = shift;
 	my $nosession = shift;
+	my $official = shift;
 
 	my $number = GetBillDisplayNumber($bill, $nosession);
 	my $maxlen = ($dotrim ? 50 : 5000);
@@ -220,6 +224,7 @@ sub GetBillDisplayTitle {
 	my $titlenode_as;
 	my $titlenode;
 
+	if (!$official) {
 	$titlenode_as = $bill->findvalue('titles/title[@type="short"][position()=last()]/@as');
 	$titlenode = $bill->findvalue("titles/title[\@type='short' and \@as='$titlenode_as'][position()=1]");
 	if ($titlenode ne "") { return $number . ": " . $titlenode; }
@@ -227,6 +232,7 @@ sub GetBillDisplayTitle {
 	$titlenode_as = $bill->findvalue('titles/title[@type="popular"][position()=last()]/@as');
 	$titlenode = $bill->findvalue("titles/title[\@type='popular' and \@as='$titlenode_as'][position()=1]");
 	if ($titlenode ne "") { return $number . ": " . $titlenode; }
+	}
 
 	$titlenode_as = $bill->findvalue('titles/title[@type="official"][position()=last()]/@as');
 	$titlenode = $bill->findvalue("titles/title[\@type='official' and \@as='$titlenode_as'][position()=1]");
@@ -605,3 +611,33 @@ sub WriteStatus {
 	close STATUS;
 }
 
+sub Download {
+	my $URL = shift;
+	
+	my $key = md5_base64($URL);
+	$key =~ s#/#-#g;
+	
+	my $fn = "../mirror/$key";
+	
+	if ($ENV{CACHED} && -e $fn) {
+		my $data;
+		gunzip $fn => \$data or die "gzip failed: $GunzipError\n";
+		return $data;
+	}
+	
+	sleep(1);
+	my $response = $UA->get($URL);
+	if (!$response->is_success) {
+		warn "Could not fetch $URL";
+		return undef;
+	}
+
+	my $data = $response->content;
+
+	$HTTP_BYTES_FETCHED += length($data);
+	
+	mkdir '../mirror';
+	gzip \$data => $fn;
+	
+	return $data;
+}

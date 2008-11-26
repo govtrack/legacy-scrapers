@@ -49,15 +49,8 @@ sub GetCR {
 
 	my $url = "http://thomas.loc.gov/cgi-bin/query/B?r$session:\@FIELD(FLD003+$WHERE)+\@FIELD(DDATE+$digitdate)";
 	
-	sleep 1;
-	my $response = $UA->get($url);
-	if (!$response->is_success) {
-		die "Could not fetch " .
-			"congressional record $WHERE $session $digitdate at $url: " .
-			$response->code . " " .
-			$response->message; }
-	$HTTP_BYTES_FETCHED += length($response->content);
-	my $content = $response->content;
+	my $content = Download($url);
+	if (!$content) { return; }
 
 	print "Fetching Record $WHERE $digitdate\n";
 	
@@ -104,15 +97,8 @@ sub GetCR2 {
 
 	# First Page
 
-	sleep 1;
-	my $response = $UA->get("http://thomas.loc.gov$URL");
-	if (!$response->is_success) {
-		die "Could not fetch " .
-			"congressional record section $ORIDNAL (intermediate page) at $url: " .
-			$response->code . " " .
-			$response->message; }
-	$HTTP_BYTES_FETCHED += length($response->content);
-	my $content = $response->content;
+	my $content = Download("http://thomas.loc.gov$URL");
+	if (!$content) { return; }
 	
 	if ($content !~ /<a href="([^\"]+?)"><em>Printer Friendly Display<\/em><\/a>/i) {
 		die "Congressional record has no printer friendly page at $url";
@@ -122,16 +108,9 @@ sub GetCR2 {
 	
 	# GET PRINTER FRIENDLY PAGE
 	
-	sleep 1;
-	$response = $UA->get("http://thomas.loc.gov$URL");
-	if (!$response->is_success) {
-		die "Could not fetch " .
-			"congressional record section $ORIDNAL (text page) at $URL: " .
-			$response->code . " " .
-			$response->message; }
-	$HTTP_BYTES_FETCHED += length($response->content);
-	
-	$content = $response->content;
+	my $content = Download("http://thomas.loc.gov$URL");
+	if (!$content) { return; }
+
 	$content =~ s/<center><pre>\[Page\: [HS]\d+\]<\/pre><\/center>[\n\r]//g;
 	$content =~ s/<center><pre>\[Time\: [\d\:]+\]<\/pre><\/center>[\n\r]//g;
 

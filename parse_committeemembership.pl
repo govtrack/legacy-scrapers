@@ -36,11 +36,10 @@ sub GetThomasNames {
 	for my $session ($FIRSTSESSION..$SESSION) {
 		my $sessionurl = sprintf("%03d", $session);
 		
-		sleep(1);
 		print "Getting THOMAS committee list for $session.\n";
-		my $response = $UA->get("http://thomas.loc.gov/bss/d${sessionurl}query.html");
-		if (!$response->is_success) { warn "Could not get THOMAS committee list."; last; }
-		my $html = "" . $response->content;
+		my $content = Download("http://thomas.loc.gov/bss/d${sessionurl}query.html");
+		if (!$content) { return; }
+		my $html = "" . $content;
 		
 		my $cct = 0;
 		while ($html =~ /<option value="\s*([^">]*)\{([hs])([a-z]+)([0-9]+)\}">-*.*<\/option>/g) {
@@ -59,10 +58,8 @@ sub GetThomasNames {
 }
 
 sub GetSenateCommittees {
-	sleep(1);
-	$response = $UA->get('http://www.senate.gov/pagelayout/committees/b_three_sections_with_teasers/membership.htm');
-	if (!$response->is_success) { warn "Could not get Senate committee list."; }
-	$html = $response->content;
+	my $html = Download('http://www.senate.gov/pagelayout/committees/b_three_sections_with_teasers/membership.htm');
+	if (!$html) { return; }
 	
 	while ($html =~ /="\/general\/committee_membership\/committee_memberships_(\w+?)\.htm">(.*?)</g) {
 	
@@ -88,10 +85,8 @@ sub GetSenateCommittees {
 			type => lc($ctype), code => $code, displayname => $name);
 		AddCommitteeNames($cxml, $code);
 	
-		#sleep(1);
-		$response = $UA->get('http://www.senate.gov/general/committee_membership/committee_memberships_' . $code . '.htm');
-		if (!$response->is_success) { die "Could not get Senate committee info $code."; }
-		my $html2 = $response->content;
+		my $html2 = Download('http://www.senate.gov/general/committee_membership/committee_memberships_' . $code . '.htm');
+		if (!$html2) { die; }
 		$html2 =~ s/<\/position>\r?\n/<\/position>/g;
 		$html2 =~ s/<\/state>\)\s+,/<\/state>\),/g;
 	
@@ -187,10 +182,8 @@ sub GetSenateCommittees {
 }
 
 sub GetHouseCommittees {
-	sleep(1);
-	$response = $UA->get('http://clerk.house.gov/committee_info/index.html');
-	if (!$response->is_success) { warn "Could not get House committee list."; }
-	$html = $response->content;
+	my $html = Download('http://clerk.house.gov/committee_info/index.html');
+	if (!$html) { return; }
 	
 	while ($html =~ /\/committee_info\/index\.html\?comcode=([A-Z0]{3})00">(.*?)<\//g) {
 		my $housecode = $1;
@@ -234,10 +227,8 @@ sub GetHouseCommittees {
 			($cxml) = $xml->documentElement->findnodes("committee[\@code='$ourcode']");
 		}
 		
-		sleep(1);
-		$response = $UA->get('http://clerk.house.gov/committee_info/index.html?comcode=' . $housecode . '00');
-		if (!$response->is_success) { warn "Could not get House committee info for $ourcode."; }
-		$html2 = $response->content;
+		html2 = Download('http://clerk.house.gov/committee_info/index.html?comcode=' . $housecode . '00');
+		if (!$html2) { die; }
 		
 		# cleanup for bad line format in joint committee pages
 		$html2 =~ s/(mem_contact_info[^>]+>)\s+/$1/g;
@@ -267,10 +258,8 @@ sub GetHouseCommittees {
 			} else {
 				# fetch info for this subcommittee
 
-				sleep(1);
-				$response = $UA->get('http://clerk.house.gov/committee_info/index.html?subcomcode=' . $housecode . $scid);
-				if (!$response->is_success) { warn "Could not get House subcommittee info for $ourcode$scid."; }
-				$html2 = $response->content;
+				$html2 = Download('http://clerk.house.gov/committee_info/index.html?subcomcode=' . $housecode . $scid);
+				if ($html2) { die; }
 
 				$ccode = $ourcode . $scid;
 				$subname = $subcomnames{$scid};

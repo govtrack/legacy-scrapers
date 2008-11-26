@@ -54,13 +54,9 @@ sub ClearChamberCommitteeMeetings {
 sub FetchHouseCommitteeSchedule {
 	my $xml = shift;
 
-	my $response = $UA->get("http://thomas.loc.gov/cgi-bin/dailydigest");
-	if (!$response->is_success) {
-		die "Could not fetch latest daily digest: " . $response->code . ", " . $response->message;
-	}
-	$HTTP_BYTES_FETCHED += length($response->content);
-	
-	my $content = $response->content;
+	my $content = Download("http://thomas.loc.gov/cgi-bin/dailydigest");
+	if (!$content) { return; }
+
 	$content =~ s/:\n/: /g;
 
 	my @lines = split(/[\n\r]+/, $content);
@@ -121,15 +117,12 @@ sub FetchSenateCommitteeSchedule_Old {
 	ClearChamberCommitteeMeetings($xml, 's');
 
 	my $URL = "http://www.senate.gov/pagelayout/committees/b_three_sections_with_teasers/committee_hearings.htm";
-	my $response = $UA->get($URL);
-	if (!$response->is_success) {
-		die "Could not fetch committee schedule at " . $URL . ": " . $response->code . ", " . $response->message;
-	}
-	$HTTP_BYTES_FETCHED += length($response->content);	
+	my $content = Download($URL);
+	if (!$content) { return; }
 	
 	my $mode = 0;
 	my ($mon, $day, $year);
-	foreach my $line (split(/[\n\r]+/, $response->content)) {
+	foreach my $line (split(/[\n\r]+/, $content)) {
 		if ($line =~ /<b>(Monday|Tuesday|Wednesday|Thursday|Friday), (\w+)\.? (\d+), (\d+)<\/b>/i) {
 			($mon, $day, $year) = ($2, $3, $4);
 			$mon = uc($mon);
@@ -189,13 +182,10 @@ sub FetchSenateCommitteeSchedule {
 	ClearChamberCommitteeMeetings($xml, 's');
 
 	my $URL = "http://www.senate.gov/general/committee_schedules/hearings.xml";
-	my $response = $UA->get($URL);
-	if (!$response->is_success) {
-		die "Could not fetch committee schedule at " . $URL . ": " . $response->code . ", " . $response->message;
-	}
-	$HTTP_BYTES_FETCHED += length($response->content);	
+	my $content = Download($URL);
+	if (!$content) { return; }
 	
-	my $doc = $XMLPARSER->parse_string($response->content);
+	my $doc = $XMLPARSER->parse_string($content);
 	for my $n ($doc->findnodes('css_meetings_scheduled/meeting[not(cmte_code="")]')) {
 		my $committee = $n->findvalue('committee[position()=1]');
 		my $subcommittee = $n->findvalue('sub_cmte[position()=1]');
