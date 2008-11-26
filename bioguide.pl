@@ -91,10 +91,11 @@ foreach my $id (@IDs) {
 
 	my $bio = $1;
 	$bio =~ s/<\/FONT>//;
-	$bio =~ s/<\/?i>//;
+	$bio =~ s/<\/?i>//i;
 	$bio =~ s/<\/?dh>//;
 	$bio =~ s/\n//g;
 
+	$bio = decode("iso-8859-1", $bio);
 	decode_entities($bio);
 
 	while ($bio =~ /<(.*?)>/g) {
@@ -102,7 +103,7 @@ foreach my $id (@IDs) {
 	}
 	$bio =~ s/<(.*?)>//g; # remove any stray tags
 
-	$csv->combine($id, decode("iso-8859-1", $bio)) or die $csv->error_input();
+	$csv->combine($id, $bio) or die $csv->error_input();
 	print B3 $csv->string() . "\n";
 }
 
