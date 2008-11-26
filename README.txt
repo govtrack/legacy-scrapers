@@ -68,6 +68,12 @@ If you're also running a local instance of the GovTrack website (the
 directory so you reuse the website's data directory. Or symlink
 www/data to a "data" directory next to "gather".
 
+They also expect a "../mirror" directory (i.e. a mirror directory
+along side the gather directory) which some scripts will use to
+store files downloaded. (It stores it in files whose names are MD5
+hashes of the URLs where the file came from.) The scripts won't use
+the mirrored (i.e. cached) files unless CACHED=1 is set in the
+environment.
 
 Running the Scripts
 -------------------
@@ -101,6 +107,12 @@ It writes out:
   Amendments to this bill. This happens to be the Senate's
   3rd 'amendment' in 2007. The fact that it amends S. 1 is
   encoded within the file.
+  
+  ../mirror/(various)
+  Caches of remote pages that have been fetched, which can
+  be used in place of future remote fetches by setting
+  CACHED=1 in the environment (using bash, just put that
+  at the very beginning like with REMOTE_DB=1).
   
 The formats of the XML files are somewhat documented here:
 http://wiki.govtrack.us/index.php/Data_Directory
