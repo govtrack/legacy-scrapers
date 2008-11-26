@@ -1,7 +1,6 @@
 #!/usr/bin/perl
 
 use XML::LibXML;
-use Algorithm::Diff;
 
 use utf8; # because of our empty node sentinel as a literal utf8 string
 
@@ -123,6 +122,17 @@ sub ComputeBillTextChanges {
 	my $file1 = $XMLPARSER->parse_file("$prefix$status1.gen.html");
 	my $file2 = $XMLPARSER->parse_file("$prefix$status2.html");
 	$XMLPARSER->keep_blanks(1);
+
+	my $file2 = RichDiff($file1, $file2);
+
+	$file2->documentElement->setAttribute("previous-status", $status1);
+	$file2->documentElement->setAttribute("status", $status2);
+
+	return $file2->toString(1);
+}
+
+sub RichDiff {
+	my ($file1, $file2) = @_;
 
 	# Remove change history from left document.
 	foreach my $node ($file1->findnodes("//inserted")) {
@@ -489,16 +499,13 @@ sub ComputeBillTextChanges {
 	foreach my $n ($file2->findnodes('//inserted|//removed|//changed')) {
 		$n->setAttribute("sequence", ++$seq);
 	}
-
-	$file2->documentElement->setAttribute("previous-status", $status1);
-	$file2->documentElement->setAttribute("status", $status2);
-
+	
 	$file2->documentElement->setAttribute("difference-size-chars", $diffsize);
 	$file2->documentElement->setAttribute("percent-change", int(100 * $diffsize / $diffdenominator));
 
 	$file2->documentElement->setAttribute("total-changes", $seq);
 
-	return $file2->toString(1);
+	return $file2;
 }
 
 sub SerializeDocument {
