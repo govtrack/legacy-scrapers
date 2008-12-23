@@ -186,6 +186,8 @@ sub PersonDBGetID {
 	$matches1 = DBSelectAll(hash, people, [id, firstname, middlename, nickname, namemod, lastname],
 		[DBSpecEQ(lastname,$lastname)
 		. " or " . DBSpecEQ(lastname,$lastname2)
+		. " or " . DBSpecEQ(lastnamealt,$lastname)
+		. " or " . DBSpecEQ(lastnamealt,$lastname2)
 		. " or " . DBSpecEQ(middlename,$lastname2)
 		. " or (" . DBSpecEQ("middlename",$lastsplit[0]) . " and " . DBSpecEQ("lastname",$lastsplit[1]) . " and " . scalar(@lastsplit) . '=2)'
 		. " or " . DBSpecStartsWith(lastname,$lastname . '-')

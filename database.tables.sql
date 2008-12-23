@@ -28,13 +28,12 @@ CREATE TABLE `people` (
   `lastname` tinytext character set utf8 NOT NULL,
   `namemod` tinytext character set latin1,
   `lastnameenc` tinytext collate utf8_bin NOT NULL,
+  `lastnamealt` tinytext collate utf8_bin,
   `birthday` date default '0000-00-00',
   `gender` char(1) character set latin1 NOT NULL default '',
   `religion` tinytext character set latin1,
-  `url` tinytext character set latin1,
-  `party` tinytext character set latin1,
   `osid` varchar(50) character set latin1 default NULL,
-  `bioguideid` varchar(7) character set latin1 NOT NULL default 'UNKNOWN',
+  `bioguideid` varchar(7) character set utf8 default NULL,
   `pvsid` int(11) default NULL,
   `fecid` char(9) collate utf8_bin default NULL,
   `metavidid` tinytext collate utf8_bin,
@@ -42,7 +41,8 @@ CREATE TABLE `people` (
   UNIQUE KEY `bioguideid` (`bioguideid`),
   KEY `lastname` (`lastname`(30)),
   KEY `middlename` (`middlename`(15)),
-  KEY `lastnameenc` (`lastnameenc`(15))
+  KEY `lastnameenc` (`lastnameenc`(15)),
+  KEY `lastnamealt` (`lastnamealt`(15))
 ) ENGINE=MyISAM AUTO_INCREMENT=412264 DEFAULT CHARSET=utf8 COLLATE=utf8_bin;
 
 --
@@ -61,9 +61,6 @@ CREATE TABLE `people_roles` (
   `district` smallint(6) default '0',
   `class` varchar(8) character set utf8 default NULL,
   `url` varchar(100) character set utf8 default NULL,
-  `address` varchar(100) character set utf8 default NULL,
-  `phone` varchar(100) character set utf8 default NULL,
-  `email` varchar(100) character set utf8 default NULL,
   `title` enum('REP','DEL','RC') NOT NULL default 'REP',
   PRIMARY KEY  (`personroleid`),
   KEY `personid` (`personid`),
@@ -127,4 +124,4 @@ CREATE TABLE `committees` (
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2008-10-30 12:40:02
+-- Dump completed on 2008-12-23 19:21:32
