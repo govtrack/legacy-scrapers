@@ -512,50 +512,83 @@ sub CreateGeneratedBillTexts {
 	
 	my $billdir = "../data/us/$session/bills";
 	my $textdir = "../data/us/bills.text/$session";
+	my $cmpdir = "../data/us/bills.text.cmp/$session";
+	
+	system("mkdir -p {$textdir,$cmpdir}/{h,s,hr,sr,hj,sj,hc,sc}");
 
 	opendir BILLS, "$billdir";
 	foreach my $bill (sort(readdir(BILLS))) {
 		if ($bill !~ /([a-z]+)(\d+)\.xml/) { next; }
 		my ($type, $number) = ($1, $2);
 		if ($onlythisbill ne "" && $onlythisbill ne "ALL" && $onlythisbill ne "$type$number") { next; }
-		my $pstatus = undef;
-		foreach my $status (GetBillStatusList($type)) {
+		
+		my @statuses = GetBillStatusList($type);
+		
+		# Create a revised XML HTML version that marks up certain
+		# things.
+		foreach my $status (@statuses) {
 			my $infile = "$textdir/$type/$type$number$status.html";
 			if (!-e $infile) { next; }
 
 			my $genfile = "$textdir/$type/$type$number$status.gen.html";
 
-			if ($onlythisbill eq "" && -e $genfile) { $pstatus = $status; next; }
-			#if ($onlythisbill eq "ALL" && -e $genfile && (-M $genfile) < 1) { $pstatus = $status; next; }
+			if ($onlythisbill eq "" && -e $genfile) { next; }
+			if ($onlythisbill eq "ALL" && -e $genfile && (-M $genfile) < 2) { next; }
 
 			print "$genfile\n";
 
-			my $g;
-			if (!defined($pstatus)) {
-				open G, "<$infile";
-				$g = join("", <G>);
-				close G;
-				$g = AddIdAttributesToBillText($g, "t0:" . $status);
-			} else {
-				$g = ComputeBillTextChanges($session, $type, $number, $pstatus, $status);
-			}
-
-			$g =~ s/(-{80})-*/$1/g;
-			$g =~ s/([^\s<>]{80})/$1 /g;
-
-			# mark up U.S.C. references
-			$g =~ s/((\d[0-9A-Za-z\-]*) U\.S\.C\. (\d[0-9A-Za-z\-]*)((\s*\(\w+\))*))/usctag($1, $2, $3, $4)/eg;
-			$g =~ s/(Section (\d[0-9A-Za-z\-]*)((\s*\(\w+\))*) of title (\S+), United States Code)/usctag($1, $5, $2, $3)/egi;
+			my $file = $XMLPARSER->parse_file("$infile");
+			
+			$file->documentElement->setAttribute('status', $status);
+			AddIdAttributesToBillText($file, "t0:" . $status);
+			
+			my $g = $file->toString;
+			$g = BillTextMarkup($g);
 			
 			open G, ">$genfile";
 			print G $g;
 			close G;
+		}
 
-			$pstatus = $status;
+		for (my $i = 0; $i < scalar(@statuses)-1; $i++) {
+			my $status1 = $statuses[$i];
+			my $g1 = "$textdir/$type/$type$number$status1.html";
+			if (!-e $g1) { next; }
+			for (my $j = $i+1; $j < scalar(@statuses); $j++) {
+				my $status2 = $statuses[$j];
+				my $g2 = "$textdir/$type/$type$number$status2.html";
+				if (!-e $g2) { next; }
+				my $outfile = "$cmpdir/$type/$type${number}_$status1-$status2.xml";
+				if ($onlythisbill eq "" && -e $outfile) { next; }
+				if ($onlythisbill eq "ALL" && -e $outfile && (-M $outfile) < 2) { next; }
+				my $c = ComputeBillTextChanges($session, $type, $number, $status1, $status2);
 
+				my $g = $c->toString(1);
+				$g = BillTextMarkup($g);
+			
+				open G, ">$outfile";
+				print G $g;
+				close G;
+			}
 		}
     }
 	closedir BILLS;
+}
+
+sub BillTextMarkup {
+	my $g = shift;
+	
+	$g =~ s/(-{80})-*/$1/g;
+	$g =~ s/([^\s<>]{80})/$1 /g;
+
+	# mark up U.S.C. references
+	$g =~ s/((\d[0-9A-Za-z\-]*) U\.S\.C\. (\d[0-9A-Za-z\-]*)((\s*\([^\) ]+\))*))/usctag($1, $2, $3, $4)/eg;
+	$g =~ s/(Section (\d[0-9A-Za-z\-]*)((\s*\([^\) ]+\))*) of title (\S+), United States Code)/usctag($1, $5, $2, $3)/egi;
+			
+	# mark up references to public laws
+	$g =~ s/(Public Law (\d+)-(\d+))/<public-law-reference session="$2" number="$3">$1<\/public-law-reference>/g;
+	
+	return $g;
 }
 
 sub GetBillStatusList {
@@ -684,6 +717,7 @@ sub hamming {
 
 sub usctag {
 	my ($text, $title, $section, $paragraph) = @_;
+	$paragraph =~ s/<[^>]+>//g; # remove tags which occur rarely
 	return "<usc-reference title=\"$title\" section=\"$section\" paragraph=\"" . splitUSCGraphId($paragraph) . "\">$text<\/usc-reference>"
 }
 

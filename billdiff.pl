@@ -8,7 +8,7 @@ my $XMLPARSER = XML::LibXML->new();
 
 if ($ARGV[0] eq "BILLDIFF") {
 	shift @ARGV;
-	print ComputeBillTextChanges(@ARGV);
+	print ComputeBillTextChanges(@ARGV)->toString(1);
 }
 
 1;
@@ -120,7 +120,7 @@ sub ComputeBillTextChanges {
 
 	$XMLPARSER->keep_blanks(0);
 	my $file1 = $XMLPARSER->parse_file("$prefix$status1.gen.html");
-	my $file2 = $XMLPARSER->parse_file("$prefix$status2.html");
+	my $file2 = $XMLPARSER->parse_file("$prefix$status2.gen.html");
 	$XMLPARSER->keep_blanks(1);
 
 	my $file2 = RichDiff($file1, $file2);
@@ -128,7 +128,7 @@ sub ComputeBillTextChanges {
 	$file2->documentElement->setAttribute("previous-status", $status1);
 	$file2->documentElement->setAttribute("status", $status2);
 
-	return $file2->toString(1);
+	return $file2;
 }
 
 sub RichDiff {
@@ -572,7 +572,7 @@ sub MakeWordList {
 sub isWSBefore {
 	my $node = shift;
 	if (!defined($node->previousSibling)) { return 1; }
-	if ($node->previousSibling->textContent !~ /\S/) { return 1; }
+	if ($node->previousSibling->textContent =~ /\S/) { return 0; }
 	return isWSBefore($node->previousSibling);
 }
 
