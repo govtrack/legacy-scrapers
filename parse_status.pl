@@ -142,11 +142,10 @@ sub AllSession {
 sub GovGetAllBills {
 	my $SESSION = shift;    # Session number
 	my $SKIPIFEXISTS = shift;
-	my $content;
 
 	my $URL = "http://frwebgate.access.gpo.gov/cgi-bin/BillBrowse.cgi?dbname=" . $SESSION . "_cong_bills&wrapperTemplate=all" . $SESSION . "bills_wrapper.html&billtype=all";
 	print $URL . "\n";
-	$content = Download($URL);
+	my ($content, $mtime) = Download($URL);
 	if (!$content) { return; }
 
 	my %billstatuses = ();
@@ -197,11 +196,11 @@ sub GovGetBill {
 	my $PATH = "/cgi-bin/bdquery/z?d$SESSION:$BILLTYPE2$BILLNUMBER:\@\@\@L";
 	my $URL = "http://$SERVER$PATH";
 
-	my $now = time;
-	my $updated = Now();
-
-	my $content = Download($URL);
+	my ($content, $mtime) = Download($URL);
 	if (!$content) { return; }
+
+	my $updated = DateToISOString($mtime);
+
 	$content =~ s/\n\r/\n/g;
 	$content =~ s/\r/ /g; # amazing, stray carriage returns
 	
@@ -503,10 +502,12 @@ sub GovGetBill {
 
 	# TITLES
 
+	my $mtime2;
+
 	if ($titles eq "" || $titles =~ /\*NONE\*/) {
 		# There's some bug in THOMAS that titles aren't appearing on the All Information status page.
 		$URL =~ s/\@[\w\W]*$/\@\@\@T/;
-		$titles = Download($URL);
+		($titles, $mtime2) = Download($URL);
 	}
 	$titles =~ s/[\n\r]//g;
 	$titles =~ s/<\/?i>//gi;
@@ -533,7 +534,7 @@ sub GovGetBill {
 	my $SUMMARY = undef;
 
 	$URL =~ s/\@[\w\W]*$/\@\@\@D\&summ2=m\&/;
-	$content = Download($URL);
+	($content, $mtime2) = Download($URL);
 	$content =~ s/\n\r/\n/g;
 	$content =~ s/\r/ /g; # amazing, stray carriage returns
 	@content = split(/\n+/, $content);
@@ -553,7 +554,7 @@ sub GovGetBill {
 	# GET COMMITTEES
 
 	$URL = "http://thomas.loc.gov/cgi-bin/bdquery/z?d$SESSION:$BILLTYPE2$BILLNUMBER:\@\@\@C";
-	$content = Download($URL);
+	$content, $mtime2 = Download($URL);
 	@content = split(/[\n\r]+/, $content);
 	foreach $c (@content) {
 		if ($c =~ /<a href="\/cgi-bin\/bdquery(tr)?\/R\?[^"]+">([\w\W]*)<\/a>\s*<\/td><td width="65\%">([\w\W]+)<\/td><\/tr>/i) {
@@ -574,7 +575,7 @@ sub GovGetBill {
 	# GET CRS TERMS
 
 	$URL = "http://thomas.loc.gov/cgi-bin/bdquery/z?d$SESSION:$BILLTYPE2$BILLNUMBER:\@\@\@J&summ2=m&";
-	$content = Download($URL);
+	$content, $mtime2 = Download($URL);
 	@content = split(/[\n\r]+/, $content);
 	foreach $c (@content) {
 		if ($c =~ /\@FIELD\(FLD001\+\@4/i ) {
@@ -589,7 +590,7 @@ sub GovGetBill {
 	# GET RELATED BILLS
 
 	$URL = "http://thomas.loc.gov/cgi-bin/bdquery/z?d$SESSION:$BILLTYPE2$BILLNUMBER:\@\@\@K";
-	$content = Download($URL);
+	$content, $mtime2 = Download($URL);
 	@content = split(/[\n\r]+/, $content);
 	foreach $c (@content) {
 		if ($c =~ /<tr><td width="150"><a href="\/cgi-bin\/bdquery(tr)?\/z\?d(\d\d\d):\w+\d\d\d\d\d:">$BillPattern<\/a><\/td><td>([^<]+)<\/td><\/tr>/i) {
@@ -617,7 +618,7 @@ sub GovGetBill {
 	# GET AMENDMENTS
 
 	$URL = "http://thomas.loc.gov/cgi-bin/bdquery/z?d$SESSION:$BILLTYPE2$BILLNUMBER:\@\@\@A";
-	$content = Download($URL);
+	$content, $mtime2 = Download($URL);
 	@content = split(/[\n\r]+/, $content);
 	foreach $c (@content) {
 		if ($c =~ /<a href="\/cgi-bin\/bdquery\/z\?d$SESSION:(HZ|SP)\d+:">/i ) {
@@ -726,7 +727,7 @@ sub GovGetBill {
 
 	open XML, ">$xfn";
 	print XML <<EOF;
-<bill session="$SESSION" type="$BILLTYPE" number="$BILLNUMBER" retreived_date="$now" updated="$updated">
+<bill session="$SESSION" type="$BILLTYPE" number="$BILLNUMBER" updated="$updated">
 	<status>$STATUSNOW</status>
 
 	<introduced date="$INTRODUCED" datetime="$INTRODUCED2"/>
@@ -783,9 +784,10 @@ sub ParseAmendment {
 
 	my $URL = "http://thomas.loc.gov/cgi-bin/bdquery/z?d$session:$chamber$char$number:";
 
-	my $now = time;
-	my $updated = Now();
-	my $content = Download($URL);
+	my ($content, $mtime) = Download($URL);
+	if (!$content) { return; }
+	my $updated = DateToISOString($mtime);
+
 	$content =~ s/\r//g;
 	
 	my $sequence = '';
@@ -897,7 +899,7 @@ sub ParseAmendment {
 
 	open XML, ">", "$fn";
 	print XML <<EOF;
-<amendment session="$session" chamber="$chamber" number="$number" retreived_date="$now" updated="$updated">
+<amendment session="$session" chamber="$chamber" number="$number" updated="$updated">
 	<amends type="$billtype" number="$billnumber" sequence="$sequence"/>
 	<status $statusdate>$status</status>
 	<sponsor $sponsorxml/>

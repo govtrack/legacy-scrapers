@@ -47,7 +47,7 @@ sub DownloadRollCallVotesAll {
 
 	# Download house roll call votes
 	my $URL = "http://clerk.house.gov/evs/$YEAR/index.asp";
-	my $content = Download($URL);
+	my ($content, $mtime) = Download($URL);
 	if (!$content) { return; }
 	if ($content =~ /vote.asp\?year=$YEAR\&rollnumber=(\d+)/) {
 		my $maxHRoll = $1;
@@ -60,7 +60,7 @@ sub DownloadRollCallVotesAll {
 	
 	# Download all of the senate roll call votes
 	$URL = "http://www.senate.gov/legislative/LIS/roll_call_lists/vote_menu_$SESSION" . "_" . "$SUBSESSION.htm";
-	my $content = Download($URL);
+	my ($content, $mtime) = Download($URL);
 	if (!$content) { return; }
 	if ($content =~ /Unspecified/) { die "Senate vote list has an 'Unspecified' vote."; }
 	if ($content =~ /roll_call_vote_cfm\.cfm\?congress=$SESSION\&session=$SUBSESSION\&vote=(\d+)/) {
@@ -274,7 +274,7 @@ sub GetSenateVote {
 
 	print "Fetching Senate roll $SESSION-$SUBSESSION $ROLL\n" if (!$OUTPUT_ERRORS_ONLY);
 	my $URL = "http://www.senate.gov/legislative/LIS/roll_call_lists/roll_call_vote_cfm.cfm?congress=$SESSION&session=$SUBSESSION&vote=$ROLL2";
-	my $content = Download($URL);
+	my ($content, $mtime) = Download($URL);
 	if (!$content) { return; }
 	if ($content !~ /Question/) { warn "Vote not found on senate website: $URL"; return; }
 	my @contentlines = split(/[\n\r]+/, $content);
@@ -392,7 +392,7 @@ sub GetSenateVote {
 
 	#print join(" ", scalar(@aaye), scalar(@anay), scalar(@anv)) . "\n";
 
-	WriteRoll($fn, "senate", $ROLL, $WHEN, $DATETIME, \@aaye, \@anay, \@anv, \@apres, $TYPE, $QUESTION, $REQUIRED, $RESULT, $BILL, $AMENDMENT);
+	WriteRoll($fn, $mtime, "senate", $ROLL, $WHEN, $DATETIME, \@aaye, \@anay, \@anv, \@apres, $TYPE, $QUESTION, $REQUIRED, $RESULT, $BILL, $AMENDMENT);
 
 	return 1;
 }
@@ -413,7 +413,7 @@ sub GetHouseVote {
 	print "Fetching House roll $SESSION-$YEAR $ROLL\n" if (!$OUTPUT_ERRORS_ONLY);
 	my $roll2 = sprintf("%03d", $ROLL);
 	my $URL = "http://clerk.house.gov/evs/$YEAR/roll$roll2.xml";
-	my $content = Download($URL);
+	my ($content, $mtime) = Download($URL);
 	if (!$content) { return; }
 
 	$content =~ s/<!DOCTYPE .*?>//;
@@ -527,12 +527,13 @@ sub GetHouseVote {
 	if (scalar(@anv) != $nvs) { die "Vote totals don't match up: not voting $nvs " . scalar(@anv); }
 	if (scalar(@apr) != $presents) { die "Vote totals don't match up: present $presents " . scalar(@pr); }
 
-	WriteRoll($fn, "house", $ROLL, $when, $datetime, \@aaye, \@anay, \@anv, \@apr, $type, $question, $required, $result, $bill, $amendment);
+	WriteRoll($fn, $mtime, "house", $ROLL, $when, $datetime, \@aaye, \@anay, \@anv, \@apr, $type, $question, $required, $result, $bill, $amendment);
 	return 1;
 }
 
 sub WriteRoll {
 	my $fn = shift;
+	my $mtime = shift;
 	my $where = shift;
 	my $ROLL = shift;
 	my $when = shift;
@@ -570,11 +571,11 @@ sub WriteRoll {
 
 	`mkdir -p ../data/us/$SESSION/rolls`;
 
-	my $now = Now();
+	$mtime = DateToISOString($mtime);
 
 	open ROLL, ">$fn" || die "Couldn't open roll file";
 	print ROLL "<roll where=\"$where\" session=\"$SESSION\" year=\"$YEAR\" roll=\"$ROLL\" when=\"$when\"\n";
-	print ROLL "\tdatetime=\"$datetime\" updated=\"$now\"\n";
+	print ROLL "\tdatetime=\"$datetime\" updated=\"$mtime\"\n";
 	print ROLL "\taye=\"$aye\" nay=\"$nay\" nv=\"$nv\" present=\"$pr\">\n";
 	print ROLL "\t<type>$TYPE</type>\n";
 	print ROLL "\t<question>$QUESTION</question>\n";

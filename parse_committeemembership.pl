@@ -37,7 +37,7 @@ sub GetThomasNames {
 		my $sessionurl = sprintf("%03d", $session);
 		
 		print "Getting THOMAS committee list for $session.\n";
-		my $content = Download("http://thomas.loc.gov/bss/d${sessionurl}query.html");
+		my ($content, $mtime) = Download("http://thomas.loc.gov/bss/d${sessionurl}query.html");
 		if (!$content) { return; }
 		my $html = "" . $content;
 		
@@ -58,7 +58,7 @@ sub GetThomasNames {
 }
 
 sub GetSenateCommittees {
-	my $html = Download('http://www.senate.gov/pagelayout/committees/b_three_sections_with_teasers/membership.htm');
+	my ($html, $mtime) = Download('http://www.senate.gov/pagelayout/committees/b_three_sections_with_teasers/membership.htm');
 	if (!$html) { return; }
 	
 	while ($html =~ /="\/general\/committee_membership\/committee_memberships_(\w+?)\.htm">(.*?)</g) {
@@ -85,7 +85,7 @@ sub GetSenateCommittees {
 			type => lc($ctype), code => $code, displayname => $name);
 		AddCommitteeNames($cxml, $code);
 	
-		my $html2 = Download('http://www.senate.gov/general/committee_membership/committee_memberships_' . $code . '.htm');
+		my ($html2, $mtime2) = Download('http://www.senate.gov/general/committee_membership/committee_memberships_' . $code . '.htm');
 		if (!$html2) { die; }
 		$html2 =~ s/<\/position>\r?\n/<\/position>/g;
 		$html2 =~ s/<\/state>\)\s+,/<\/state>\),/g;
@@ -182,7 +182,7 @@ sub GetSenateCommittees {
 }
 
 sub GetHouseCommittees {
-	my $html = Download('http://clerk.house.gov/committee_info/index.html');
+	my ($html, $mtime) = Download('http://clerk.house.gov/committee_info/index.html');
 	if (!$html) { return; }
 	
 	while ($html =~ /\/committee_info\/index\.html\?comcode=([A-Z0]{3})00">(.*?)<\//g) {
@@ -227,7 +227,7 @@ sub GetHouseCommittees {
 			($cxml) = $xml->documentElement->findnodes("committee[\@code='$ourcode']");
 		}
 		
-		html2 = Download('http://clerk.house.gov/committee_info/index.html?comcode=' . $housecode . '00');
+		my ($html2, $mtime2) = Download('http://clerk.house.gov/committee_info/index.html?comcode=' . $housecode . '00');
 		if (!$html2) { die; }
 		
 		# cleanup for bad line format in joint committee pages
@@ -258,7 +258,7 @@ sub GetHouseCommittees {
 			} else {
 				# fetch info for this subcommittee
 
-				$html2 = Download('http://clerk.house.gov/committee_info/index.html?subcomcode=' . $housecode . $scid);
+				($html2, $mtime2) = Download('http://clerk.house.gov/committee_info/index.html?subcomcode=' . $housecode . $scid);
 				if ($html2) { die; }
 
 				$ccode = $ourcode . $scid;

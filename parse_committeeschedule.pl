@@ -35,7 +35,6 @@ sub FetchCommitteeSchedule {
 		$parser->keep_blanks(0);
 		$xml = $parser->parse_file($sfile);
 	}
-	$xml->documentElement->setAttribute("updated", Now());
 
 	FetchSenateCommitteeSchedule($xml);
 	FetchHouseCommitteeSchedule($xml);
@@ -54,7 +53,7 @@ sub ClearChamberCommitteeMeetings {
 sub FetchHouseCommitteeSchedule {
 	my $xml = shift;
 
-	my $content = Download("http://thomas.loc.gov/cgi-bin/dailydigest");
+	my ($content, $mtime) = Download("http://thomas.loc.gov/cgi-bin/dailydigest");
 	if (!$content) { return; }
 
 	$content =~ s/:\n/: /g;
@@ -117,7 +116,7 @@ sub FetchSenateCommitteeSchedule_Old {
 	ClearChamberCommitteeMeetings($xml, 's');
 
 	my $URL = "http://www.senate.gov/pagelayout/committees/b_three_sections_with_teasers/committee_hearings.htm";
-	my $content = Download($URL);
+	my ($content, $mtime) = Download($URL);
 	if (!$content) { return; }
 	
 	my $mode = 0;
@@ -182,7 +181,7 @@ sub FetchSenateCommitteeSchedule {
 	ClearChamberCommitteeMeetings($xml, 's');
 
 	my $URL = "http://www.senate.gov/general/committee_schedules/hearings.xml";
-	my $content = Download($URL);
+	my ($content, $mtime) = Download($URL);
 	if (!$content) { return; }
 	
 	my $doc = $XMLPARSER->parse_string($content);

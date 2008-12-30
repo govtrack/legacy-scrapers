@@ -49,7 +49,7 @@ sub GetCR {
 
 	my $url = "http://thomas.loc.gov/cgi-bin/query/B?r$session:\@FIELD(FLD003+$WHERE)+\@FIELD(DDATE+$digitdate)";
 	
-	my $content = Download($url);
+	my ($content, $mtime) = Download($url);
 	if (!$content) { return; }
 
 	print "Fetching Record $WHERE $digitdate\n";
@@ -97,7 +97,7 @@ sub GetCR2 {
 
 	# First Page
 
-	my $content = Download("http://thomas.loc.gov$URL");
+	my ($content, $mtime) = Download("http://thomas.loc.gov$URL");
 	if (!$content) { return; }
 	
 	if ($content !~ /<a href="([^\"]+?)"><em>Printer Friendly Display<\/em><\/a>/i) {
@@ -108,7 +108,7 @@ sub GetCR2 {
 	
 	# GET PRINTER FRIENDLY PAGE
 	
-	my $content = Download("http://thomas.loc.gov$URL");
+	my ($content, $mtime) = Download("http://thomas.loc.gov$URL");
 	if (!$content) { return; }
 
 	$content =~ s/<center><pre>\[Page\: [HS]\d+\]<\/pre><\/center>[\n\r]//g;

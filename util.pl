@@ -616,13 +616,16 @@ sub Download {
 	
 	my $key = md5_base64($URL);
 	$key =~ s#/#-#g;
-	
-	my $fn = "../mirror/$key";
+	if ($key !~ /^(.)(.)/) { die; }
+	my $fn = "../mirror/$1/$2/$key";
 	
 	if ($ENV{CACHED} && -e $fn) {
 		my $data;
 		gunzip $fn => \$data or die "gzip failed: $GunzipError\n";
-		return $data;
+		my ($dev,$ino,$mode,$nlink,$uid,$gid,$rdev,$size,
+		        $atime,$mtime,$ctime,$blksize,$blocks)
+		                   = stat($fn);
+		return ($data, $mtime);
 	}
 	
 	sleep(1);
@@ -639,5 +642,5 @@ sub Download {
 	mkdir '../mirror';
 	gzip \$data => $fn;
 	
-	return $data;
+	return ($data, time);
 }
