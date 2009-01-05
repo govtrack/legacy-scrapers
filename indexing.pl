@@ -207,18 +207,28 @@ sub IndexVote {
 
 	# Compose a description of the result.
 	
-	my $result = $xml->findvalue('result') . " ";
-	if ($xml->findvalue('@aye') + $xml->findvalue('@nay') > 0) {
-		$result .= $xml->findvalue('@aye') . '-' . $xml->findvalue('@nay');
-		if ($xml->findvalue('@nv') + $xml->findvalue('@present') > 0) {
-			$result .= ', ' . ($xml->findvalue('@nv') + $xml->findvalue('@present')) . ' not voting';
-		}
-		if ($xml->findvalue('required') ne '1/2') {
-			$result .= ' (' . $xml->findvalue('required') . ' required)';
+	my $result;
+	if ($xml->findvalue('count(voter[not(@vote="+" or @vote="-" or @vote="0" or @vote="P")])') == 0) {
+		$result = $xml->findvalue('result') . " ";
+		if ($xml->findvalue('@aye') + $xml->findvalue('@nay') > 0) {
+			$result .= $xml->findvalue('@aye') . '-' . $xml->findvalue('@nay');
+			if ($xml->findvalue('@nv') + $xml->findvalue('@present') > 0) {
+				$result .= ', ' . ($xml->findvalue('@nv') + $xml->findvalue('@present')) . ' not voting';
+			}
+			if ($xml->findvalue('required') ne '1/2') {
+				$result .= ' (' . $xml->findvalue('required') . ' required)';
+			}
+		} else {
+			$result .= $xml->findvalue('@present') . ' present, '
+				. $xml->findvalue('@nv') . ' absent';
 		}
 	} else {
-		$result .= $xml->findvalue('@present') . ' present, '
-			. $xml->findvalue('@nv') . ' absent';
+		for my $n ($xml->findnodes('option')) {
+			my $c = $xml->findvalue('count(voter[@vote="' . $n->getAttribute('key') . '"])');
+			if ($c == 0){ next; }
+			if ($result ne "") { $result .= ', '; }
+			$result .= $n->textContent . " " . $c;
+		}
 	}
 	
 	# Basic information to put into the record.
@@ -295,10 +305,13 @@ sub IndexVote {
 
 	foreach my $n ($xml->findnodes('voter')) {
 		if ($n->getAttribute('id') == 0) { next; }
+		my $v = $n->getAttribute('vote');
+		if ($v ne "+" && $v ne "-" && $v ne "0" && $v ne "P") { $v = "X"; }
 		DBInsert(DELAYED, people_votes, 
 			personid => $n->getAttribute('id'),
 			voteid => $id,
-			vote => $n->getAttribute('vote')
+			vote => $v,
+			displayas => $n->getAttribute('value')
 			);
 	}
 }

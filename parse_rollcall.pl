@@ -97,9 +97,9 @@ sub DownloadRollCallVotesAll {
 		$node->setAttribute('roll', $xml->findvalue('roll/@roll'));
 		$node->setAttribute('title', $xml->findvalue('roll/question'));
 		
-		if ($xml->findvalue('roll/result') =~ /Passed|Agreed|Confirmed|Amendment Germane|Decision of Chair Sustained|Veto Overridden/i) { $node->setAttribute('result', 'pass'); }
+		if ($xml->findvalue('roll/result') =~ /Passed|Agreed|Confirmed|Amendment Germane|Decision of Chair Sustained|Veto Overridden|Point of Order Sustained/i) { $node->setAttribute('result', 'pass'); }
 		elsif ($xml->findvalue('roll/result') =~ /Fail|Defeated|Rejected|Not Sustained|Amendment Not Germane/i) { $node->setAttribute('result', 'fail'); }
-		else { warn "$vote: Unparsed result, deleting: " . $xml->findvalue('roll/result'); unlink "../data/us/$SESSION/rolls/$vote"; }
+		else { warn "$vote: Unparsed result: " . $xml->findvalue('roll/result'); }
 
 		my $counts = $xml->findvalue('roll/@aye') . "-" . $xml->findvalue('roll/@nay');
 		if ($xml->findvalue('roll/@nv') + $xml->findvalue('roll/@present') > 0) {
@@ -289,6 +289,7 @@ sub GetSenateVote {
 	my @anay = ();
 	my @anv = ();
 	my @apres = ();
+	my %votes = ();
 	my $BILL;
 	my $AMENDMENT;
 	
@@ -300,6 +301,17 @@ sub GetSenateVote {
 		my $EXTRA = $2;
 		$EXTRA =~ s/\s*[\n\r]+\s*/ /g;
 		if ($EXTRA ne "") { $QUESTION = "$TYPE $EXTRA"; }
+		
+		# Ensure the options are noted.
+		if ($TYPE eq "Guilty or Not Guilty") {
+			$votes{'Guilty'} = [];
+			$votes{'Not Guilty'} = [];
+		} else {
+			$votes{'Yea'} = [];
+			$votes{'Nay'} = [];
+		}
+		$votes{'Present'} = [];
+		$votes{'Not Voting'} = [];
 	}
 
 	foreach my $line (@contentlines) {
@@ -362,25 +374,16 @@ sub GetSenateVote {
 					when => $WHEN);
 				if (!defined($id)) { print "parsing Senate vote $SESSION-$SUBSESSION $ROLL: Unrecognized person: $name ($state)\n"; $id = 0; }
 
-				if ($vote eq "Yea" || $vote eq "Guilty") { $vote = "+"; }
-				elsif ($vote eq "Nay" || $vote eq "Not Guilty") { $vote = "-"; }
-				elsif ($vote eq "Not Voting") { $vote = "0"; }
-				elsif ($vote eq "Present" || $vote eq "Present, Giving Live Pair") { $vote = "P"; }
-				else { die "Unknown vote: $vote"; }
-
-				if ($vote eq "+") { $aye++; push @aaye, $id; }
-				if ($vote eq "-") { $nay++; push @anay, $id; }
-				if ($vote eq "0") { $nv++; push @anv, $id; }
-				if ($vote eq "P") { $pres++; push @apres, $id; }
-
-				#print "$id, $name, $state, $vote\n";
+				if ($vote eq "Present, Giving Live Pair") { $vote = "Present"; }
+				
+				$vote = htmlify($vote);
+				push @{$votes{$vote}}, $id;
 			}
 			if ($line =~ /<\/table>/i) { last; }
-		} elsif ($mode == 2) {
+		} elsif ($mode == 2) { # VP
 			my $vote;
-			if ($line =~ /Yea/) { push @aaye, 'VP'; }
-			elsif ($line =~ /Nay/) { push @anay, 'VP'; }
-			else { die "Unrecognized VP vote."; }
+			$vote = htmlify($vote);
+			push @{$votes{$vote}}, "VP";
 			$mode = 0;
 		}
 	}
@@ -394,7 +397,7 @@ sub GetSenateVote {
 
 	#print join(" ", scalar(@aaye), scalar(@anay), scalar(@anv)) . "\n";
 
-	WriteRoll($fn, $mtime, "senate", $ROLL, $WHEN, $DATETIME, \@aaye, \@anay, \@anv, \@apres, $TYPE, $QUESTION, $REQUIRED, $RESULT, $BILL, $AMENDMENT);
+	WriteRoll($fn, $mtime, "senate", $ROLL, $WHEN, $DATETIME, \%votes, $TYPE, $QUESTION, $REQUIRED, $RESULT, $BILL, $AMENDMENT);
 
 	return 1;
 }
@@ -409,8 +412,6 @@ sub GetHouseVote {
 	my $fn = "../data/us/$SESSION/rolls/h$YEAR-$ROLL.xml";
 	if ($SKIPIFEXISTS && -e $fn) { return 0; }
 	if ($SKIPIFEXISTS =~ /^(\d)D/i && -M $fn < $1) { return 0; }
-
-	if ($fn eq "../data/us/110/rolls/h2007-2.xml") { return 0; } # not aye-nay
 
 	print "Fetching House roll $SESSION-$YEAR $ROLL\n" if (!$OUTPUT_ERRORS_ONLY);
 	my $roll2 = sprintf("%03d", $ROLL);
@@ -438,18 +439,38 @@ sub GetHouseVote {
 	my $when = timelocal(0, $mm, $h, $d, $Months{uc($m)}-1, $y);
 	my $datetime = FormDateTime($y, $Months{uc($m)}, $d, $h, $mm);
 
-	my $ayes = $votexml->findvalue('vote-metadata/vote-totals/totals-by-vote/yea-total');
-	my $nays = $votexml->findvalue('vote-metadata/vote-totals/totals-by-vote/nay-total');
-	my $presents = $votexml->findvalue('vote-metadata/vote-totals/totals-by-vote/present-total');
-	my $nvs = $votexml->findvalue('vote-metadata/vote-totals/totals-by-vote/not-voting-total');
+	my $ayes = 0;
+	my $nays = 0;
+	my $presents = 0;
+	my $nvs = 0;
+        my @bycandidate = $votexml->findnodes('vote-metadata/vote-totals/totals-by-candidate');
+        if (@bycandidate>=1) {
+           my @pnode = $votexml->findnodes('vote-metadata/vote-totals/totals-by-candidate[candidate="Present"]');
+           if (@pnode>0) {
+              $presents = $pnode[0]->findvalue('candidate-total');
+              print "Present: $presents\n";
+           }
+           my @nnode = $votexml->findnodes('vote-metadata/vote-totals/totals-by-candidate[candidate="Not Voting"]');
+           if (@nnode>0) {
+              $nvs = $nnode[0]->findvalue('candidate-total');
+              print "Not Voting: $nvs\n";
+           }
+        } else {
+	   $ayes = $votexml->findvalue('vote-metadata/vote-totals/totals-by-vote/yea-total');
+	   $nays = $votexml->findvalue('vote-metadata/vote-totals/totals-by-vote/nay-total');
+	   $presents = $votexml->findvalue('vote-metadata/vote-totals/totals-by-vote/present-total');
+	   $nvs = $votexml->findvalue('vote-metadata/vote-totals/totals-by-vote/not-voting-total');
+        }
 	
 	my $type = $votexml->findvalue('vote-metadata/vote-question');
-	my $question = $type . ": ";
+	my $question = "";
 	if ($votexml->findvalue('vote-metadata/amendment-num') ne "") {
 		$question .= "Amendment " . $votexml->findvalue('vote-metadata/amendment-num') . " to ";
 	}
 	$question .= $votexml->findvalue('vote-metadata/legis-num');
 	$question .= " " . $votexml->findvalue('vote-metadata/vote-desc');
+	if ($question !~ /\S/) { $question = $type; }
+	else { $question = $type . ": " . $question ; }
 	my $required = $votexml->findvalue('vote-metadata/vote-type');	
 	if ($required eq "YEA-AND-NAY") {
 		$required = "1/2";
@@ -485,13 +506,26 @@ sub GetHouseVote {
 	my $result = $votexml->findvalue('vote-metadata/vote-result');
 	if ($result ne "Passed" && $result ne "Failed" && $result ne "Agreed to") { 
 		warn "Roll call isn't a pass/fail vote '$result' in $URL";
-		return 0;
 	}
 
-	my @aaye = ();
-	my @anay = ();
-	my @anv = ();
-	my @apr = ();
+	# Make sure all options are noted.
+	my %votes = ();
+	if ($type eq 'Election of the Speaker') {
+		for my $n ($votexml->findnodes('vote-metadata/vote-totals/totals-by-candidate/candidate')) {
+			$n = htmlify($n->textContent);
+			$votes{$n} = [];
+		}
+	} else {
+		if ($votexml->findvalue('vote-metadata/vote-type') =~ /YEA-AND-NAY/) {
+			$votes{'Yea'} = [];
+			$votes{'Nay'} = [];
+		} else {
+			$votes{'Aye'} = [];
+			$votes{'No'} = [];
+		}
+		$votes{'Present'} = [];
+		$votes{'Not Voting'} = [];
+	}
 
 	foreach my $voter ($votexml->findnodes('vote-data/recorded-vote')) {
 		my $vote = $voter->findvalue('vote');
@@ -519,19 +553,16 @@ sub GetHouseVote {
 		}
 		if (!defined($id)) { warn "parsing House vote $SESSION-$YEAR $ROLL: Unrecognized person: $bioguideid: $name ($state) in $URL"; $id = 0; }
 
-		if ($vote eq 'Yea' || $vote eq 'Aye') { push @aaye, $id; }
-		elsif ($vote eq 'Nay' || $vote eq 'No') { push @anay, $id; }
-		elsif ($vote eq 'Not Voting') { push @anv, $id; }
-		elsif ($vote eq 'Present') { push @apr, $id; }
-		else { die "Unknown vote: $vote"; }
+		$vote = htmlify($vote);
+		push @{$votes{$vote}}, $id;
 	}
 
-	if (scalar(@aaye) != $ayes) { die "Vote totals don't match up: aye $ayes " . scalar(@aaye); }
-	if (scalar(@anay) != $nays) { die "Vote totals don't match up: nay $nays " . scalar(@nay); }
-	if (scalar(@anv) != $nvs) { die "Vote totals don't match up: not voting $nvs " . scalar(@anv); }
-	if (scalar(@apr) != $presents) { die "Vote totals don't match up: present $presents " . scalar(@pr); }
+	#if (scalar(@aaye) != $ayes) { die "Vote totals don't match up: aye $ayes " . scalar(@aaye); }
+	#if (scalar(@anay) != $nays) { die "Vote totals don't match up: nay $nays " . scalar(@nay); }
+	#if (scalar(@anv) != $nvs) { die "Vote totals don't match up: not voting $nvs " . scalar(@anv); }
+	#if (scalar(@apr) != $presents) { die "Vote totals don't match up: present $presents " . scalar(@pr); }
 
-	WriteRoll($fn, $mtime, "house", $ROLL, $when, $datetime, \@aaye, \@anay, \@anv, \@apr, $type, $question, $required, $result, $bill, $amendment);
+	WriteRoll($fn, $mtime, "house", $ROLL, $when, $datetime, \%votes, $type, $question, $required, $result, $bill, $amendment);
 	return 1;
 }
 
@@ -542,10 +573,7 @@ sub WriteRoll {
 	my $ROLL = shift;
 	my $when = shift;
 	my $datetime = shift;
-	my $raaye = shift;
-	my $ranay = shift;
-	my $ranv = shift;
-	my $rapr = shift;
+	my $rvotes = shift;
 	my $TYPE = shift;
 	my $QUESTION = shift;
 	my $REQUIRED = shift;
@@ -556,15 +584,12 @@ sub WriteRoll {
 	my $SESSION = SessionFromDate($when);
 	my $YEAR = YearFromDate($when);
 
-	my @aaye = @{ $raaye };
-	my @anay = @{ $ranay };
-	my @anv = @{ $ranv };
-	my @apr = @{ $rapr };
+	my %votes = %{ $rvotes };
 
-	my $aye = scalar(@aaye);
-	my $nay = scalar(@anay);
-	my $nv = scalar(@anv);
-	my $pr = scalar(@apr);
+	my $aye = scalar(@{$votes{Aye}}) + scalar(@{$votes{Yea}});
+	my $nay = scalar(@{$votes{Nay}}) + scalar(@{$votes{No}});
+	my $nv = scalar(@{$votes{'Not Voting'}});
+	my $pr = scalar(@{$votes{Present}});
 	
 	$TYPE = htmlify($TYPE);
 	$QUESTION = htmlify($QUESTION);
@@ -587,10 +612,60 @@ sub WriteRoll {
 	print ROLL "\t<result>$RESULT</result>\n";
 	if (defined($BILL)) { print ROLL "\t<bill session=\"$$BILL[0]\" type=\"$$BILL[1]\" number=\"$$BILL[2]\" />\n"; }
 	if (defined($AMENDMENT)) { print ROLL "\t<amendment ref=\"$$AMENDMENT[0]\" session=\"$$AMENDMENT[1]\" number=\"$$AMENDMENT[2]\" />\n"; }
-	foreach $id (@aaye) { print ROLL "\t" . MakeVoteXmlElement($id, '+', $when, $where) . "\n"; }
-	foreach $id (@anay) { print ROLL "\t" . MakeVoteXmlElement($id, '-', $when, $where) . "\n"; }
-	foreach $id (@anv) { print ROLL "\t" . MakeVoteXmlElement($id, '0', $when, $where) . "\n"; }
-	foreach $id (@apr) { print ROLL "\t" . MakeVoteXmlElement($id, 'P', $when, $where) . "\n"; }
+	
+	# Get the options is a good order.
+	my @options;
+	my %doneoptions;
+	for my $k ('Aye', 'Yea', 'Guilty', 'No', 'Nay', 'Not Guilty') {
+		if ($votes{$k} && !$doneoptions{$k}) {
+			push @options, $k;
+			$doneoptions{$k} = 1;
+		}
+	}
+	for my $k (sort(keys(%votes))) {
+		if ($votes{$k} && !$doneoptions{$k} && $k ne 'Present' && $k ne 'Not Voting') {
+			push @options, $k;
+			$doneoptions{$k} = 1;
+		}
+	}
+	for my $k ('Present', 'Not Voting') {
+		if ($votes{$k} && !$doneoptions{$k}) {
+			push @options, $k;
+			$doneoptions{$k} = 1;
+		}
+	}
+	
+	my %votesymbols;
+	foreach my $k (@options) {
+		my $sym = $k;
+		if ($k eq "Aye" || $k eq "Yea" || $k eq "Guilty") { $sym = "+"; }
+		if ($k eq "No" || $k eq "Nay" || $k eq "Not Guilty") { $sym = "-"; }
+		if ($k eq "Present") { $sym = "P"; }
+		if ($k eq "Not Voting") { $sym = "0"; }
+		$votesymbols{$k} = $sym;
+		print ROLL "\t<option key=\"$sym\">$k</option>\n";
+	}
+	
+	foreach my $k (@options) {
+		foreach $id (@{ $votes{$k} }) {
+			my $sdattr = "";
+			print ROLL "\t<voter ";
+			if ($id eq "VP") {
+				print ROLL "VP=\"1\" id=\"0\" "
+			} else {
+				print ROLL "id=\"$id\" ";
+				if (!$PersonSD{$id}) {
+					my ($state, $dist) = DBSelectFirst(people_roles, [state, district], [DBSpecEQ('personid', $id), DBSpecEQ('type', $where eq 'house' ? 'rep' : 'sen'), PERSON_ROLE_THEN(DateToDBString($when))]);
+					$sdattr = "state=\"$state\"";
+					if ($where eq 'house') { $sdattr .= " district=\"$dist\""; }
+					$PersonSD{$id} = $sdattr; # fortunately can't really change within a session
+				} else {
+					$sdattr = $PersonSD{$id};
+				}
+			}
+			print ROLL "vote=\"$votesymbols{$k}\" value=\"$k\" $sdattr/>\n";
+        }
+	}
 
 	print ROLL "</roll>\n";
 	close ROLL;
@@ -607,20 +682,6 @@ sub WriteRoll {
 
 	IndexVote($SESSION, $id);
 	WriteStatus("Vote:$where", "Last fetched: $id");
-}
-
-sub MakeVoteXmlElement {
-	my ($id, $vote, $datetime, $where) = @_;
-	$SQL_DEBUG=1;
-	my ($state, $dist) = DBSelectFirst(people_roles, [state, district],
-		[DBSpecEQ('personid', $id), DBSpecEQ('type', $where eq 'house' ? 'rep' : 'sen'), PERSON_ROLE_THEN(DateToDBString($datetime))]);
-	my $sdattr = "state=\"$state\"";
-	if ($where eq 'house') { $sdattr .= " district=\"$dist\""; }
-	if ($id eq 'VP') {
-		return "<voter VP=\"1\" id=\"0\" vote=\"$vote\"/>";
-	} else {
-		return "<voter id=\"$id\" vote=\"$vote\" $sdattr/>";
-	}
 }
 
 ################################

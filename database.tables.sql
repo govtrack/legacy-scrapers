@@ -65,7 +65,7 @@ CREATE TABLE `people_roles` (
   PRIMARY KEY  (`personroleid`),
   KEY `personid` (`personid`),
   KEY `state` (`state`,`enddate`)
-) ENGINE=MyISAM AUTO_INCREMENT=42397 DEFAULT CHARSET=latin1;
+) ENGINE=MyISAM AUTO_INCREMENT=42398 DEFAULT CHARSET=latin1;
 
 --
 -- Table structure for table `people_votes`
@@ -75,7 +75,8 @@ DROP TABLE IF EXISTS `people_votes`;
 CREATE TABLE `people_votes` (
   `personid` int(11) NOT NULL,
   `voteid` varchar(10) collate utf8_unicode_ci NOT NULL,
-  `vote` enum('+','-','0','P') collate utf8_unicode_ci NOT NULL,
+  `vote` enum('+','-','0','P','X') collate utf8_unicode_ci NOT NULL,
+  `displayas` tinytext collate utf8_unicode_ci NOT NULL,
   PRIMARY KEY  (`personid`,`voteid`),
   KEY `SECONDARY` (`voteid`,`personid`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
@@ -124,4 +125,4 @@ CREATE TABLE `committees` (
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2008-12-25 17:22:25
+-- Dump completed on 2009-01-05 22:07:37
