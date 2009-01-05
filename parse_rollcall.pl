@@ -98,7 +98,7 @@ sub DownloadRollCallVotesAll {
 		$node->setAttribute('title', $xml->findvalue('roll/question'));
 		
 		if ($xml->findvalue('roll/result') =~ /Passed|Agreed|Confirmed|Amendment Germane|Decision of Chair Sustained|Veto Overridden/i) { $node->setAttribute('result', 'pass'); }
-		elsif ($xml->findvalue('roll/result') =~ /Fail|Defeated|Rejected|Not Sustained/i) { $node->setAttribute('result', 'fail'); }
+		elsif ($xml->findvalue('roll/result') =~ /Fail|Defeated|Rejected|Not Sustained|Amendment Not Germane/i) { $node->setAttribute('result', 'fail'); }
 		else { warn "$vote: Unparsed result, deleting: " . $xml->findvalue('roll/result'); unlink "../data/us/$SESSION/rolls/$vote"; }
 
 		my $counts = $xml->findvalue('roll/@aye') . "-" . $xml->findvalue('roll/@nay');
@@ -333,6 +333,8 @@ sub GetSenateVote {
 				my ($t, $n) = ($1, $2);
 				$t = $BillTypeMap{lc($t)};
 				if (defined($t)) { $BILL = [$SESSION, $t, $n]; }
+				
+				# TODO: 106-1-18 references a bill in the previous congress
 			}
 
 			if ($line =~ /Amendment Number: [\w\W]+>S.Amdt. (\d+)</i) {
@@ -344,7 +346,7 @@ sub GetSenateVote {
 				if (defined($t)) { $BILL = [$SESSION, $t, $n]; }
 			}
 
-			if ($line =~ /Vice President/) {
+			if ($line =~ /Vice President/ && $line !~ /Statement of Purpose/) {
 				$mode = 2;
 			}
 		} elsif ($mode == 1) {
@@ -360,8 +362,8 @@ sub GetSenateVote {
 					when => $WHEN);
 				if (!defined($id)) { print "parsing Senate vote $SESSION-$SUBSESSION $ROLL: Unrecognized person: $name ($state)\n"; $id = 0; }
 
-				if ($vote eq "Yea") { $vote = "+"; }
-				elsif ($vote eq "Nay") { $vote = "-"; }
+				if ($vote eq "Yea" || $vote eq "Guilty") { $vote = "+"; }
+				elsif ($vote eq "Nay" || $vote eq "Not Guilty") { $vote = "-"; }
 				elsif ($vote eq "Not Voting") { $vote = "0"; }
 				elsif ($vote eq "Present" || $vote eq "Present, Giving Live Pair") { $vote = "P"; }
 				else { die "Unknown vote: $vote"; }
@@ -462,6 +464,8 @@ sub GetHouseVote {
 		$required = "1/2";
 	} elsif ($required eq "2/3 RECORDED VOTE") {
 		$required = "2/3";
+	} elsif ($required eq "3/5 RECORDED VOTE") {
+		$required = "3/5";
 	} else {
 		warn "Unknown house vote type '$required' in $URL";
 	}
@@ -677,15 +681,14 @@ sub MakeVoteMap {
 	if ($where eq "house") { $reptype = "rep"; } else { $reptype = "sen"; }
 
 	my $when = DateToDBString($votexml->getAttribute("when"));
-	my $PERSON_ROLE_NOW = "((startdate = null or startdate <= '$when') and
-			(enddate = null or enddate >= '$when'))";
+	my $PERSON_ROLE_NOW = "(startdate <= '$when' and enddate >= '$when')";
 	
 	# CORRELATION WITH PARTY
 	
 	my %votebreakdown;
 	
 	if (!defined(%PersonPoliticalParties)) {
-		my $parties = DBSelect(people, [id, party]);
+		my $parties = DBSelect(people_roles, [personid, party], [$PERSON_ROLE_NOW]);
 		foreach my $p (@$parties) {
 			$PersonPoliticalParties{$$p[0]} = $$p[1];
 		}
