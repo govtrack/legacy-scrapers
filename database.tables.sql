@@ -65,7 +65,7 @@ CREATE TABLE `people_roles` (
   PRIMARY KEY  (`personroleid`),
   KEY `personid` (`personid`),
   KEY `state` (`state`,`enddate`)
-) ENGINE=MyISAM AUTO_INCREMENT=42398 DEFAULT CHARSET=latin1;
+) ENGINE=MyISAM AUTO_INCREMENT=42403 DEFAULT CHARSET=latin1;
 
 --
 -- Table structure for table `people_votes`
@@ -125,4 +125,4 @@ CREATE TABLE `committees` (
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2009-01-05 22:07:37
+-- Dump completed on 2009-01-07 16:23:40
