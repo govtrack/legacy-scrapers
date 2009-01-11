@@ -10,6 +10,10 @@ use LWP::UserAgent;
 use Text::CSV_XS;
 use Encode;
 
+if ($ENV{CACHED}) {
+	require "util.pl";
+}
+
 $UA = LWP::UserAgent->new(keep_alive => 2, timeout => 30, agent => "GovTrack.us", from => "errors@govtrack.us");
 
 $csv = Text::CSV_XS->new({ binary => 1 });
@@ -22,16 +26,25 @@ print B2 "#ID,ROLE,PARTY,STATE,CONGRESS\n";
 
 for my $C ('A' .. 'Z') {
 	if ($ARGV[0] ne '') { last; }
-	sleep(1);
 	print "Getting index: $C\n";
-    my $response = $UA->post(
-    	"http://bioguide.congress.gov/biosearch/biosearch1.asp",
-    	{ lastname => $C } );
-	if (!$response->is_success) { die $response->message; }
 
+	my $content;
+	if (!$ENV{CACHED}) {
+		sleep(1);
+	    my $response = $UA->post(
+    	"http://bioguide.congress.gov/biosearch/biosearch1.asp",
+	    	{ lastname => $C } );
+		if (!$response->is_success) { die $response->message; }
+		$content = $response->content;
+	} else {
+		my $mtime;
+		($content, $mtime) = Download("http://bioguide.congress.gov/biosearch/biosearch1.asp", post => { lastname => $C });
+		if (!defined($content)) { exit(0); }
+	}
+	
 	my $name;
 	my $id;
-	for my $line (split(/[\n\r]+/, $response->content)) {
+	for my $line (split(/[\n\r]+/, $content)) {
 		if ($line =~ /bioguide.congress.gov\/scripts\/biodisplay.pl/) {
 			if ($line !~ /bioguide.congress.gov\/scripts\/biodisplay.pl\?index=(\w+)">([^<]+)<\/A><\/td><td>(c? ?[\d\/\?]+c?|\&nbsp;|unknown)-(c? ?[\d\/\?]+c?|\&nbsp;|)\s*<\/td>$/) {
 				die $line;
@@ -78,22 +91,41 @@ print B3 "#ID,BIOGRAPHY\n";
 if ($ARGV[0] ne '') { push @IDs, $ARGV[0]; }
 
 foreach my $id (@IDs) {
-	sleep(1);
 	print "Getting bio: $id\n";
 
     my $url = "http://bioguide.congress.gov/scripts/biodisplay.pl?index=$id";
-    my $response = $UA->get($url);
-	if (!$response->is_success) { die $response->message; }
+    my $content;
+    if (!$ENV{CACHED}) {
+		sleep(1);
+	    my $response = $UA->get($url);
+		if (!$response->is_success) { die $response->message; }
+		$content = $response->content;
+	} else {
+		my $mtime;
+		($content, $mtime) = Download($url);
+		if (!defined($content)) { exit(0); }
+	}
 
-	if ($response->content !~ /<P><FONT SIZE=4 COLOR="#800040">([\w\W]*?)<\/(P|TD)>/) {
+	if ($content !~ /<P><FONT SIZE=4 COLOR="#800040">([\w\W]*?)<\/(P|TD)>/) {
 		die "Couldn't find bio in $url";
 	}
 
 	my $bio = $1;
 	$bio =~ s/<\/FONT>//;
-	$bio =~ s/<\/?i>//i;
+	$bio =~ s/<\/?i>//ig;
 	$bio =~ s/<\/?dh>//;
-	$bio =~ s/\n//g;
+	$bio =~ s/[\n\r]/ /g;
+	$bio =~ s/\s+/ /g;
+	$bio =~ s/^\s+//;
+	$bio =~ s/\s+$//;
+	
+	$bio =~ s/\&#145;/\&lsquo;/g;
+	$bio =~ s/\&#146;/\&rsquo;/g;
+	$bio =~ s/\&#147;/\&ldquo;/g;
+	$bio =~ s/\&#148;/\&rdquo;/g;
+	while ($bio =~ /\&#(\d+);/g) {
+		print "Numeric entity: $1\n";
+	}
 
 	$bio = decode("iso-8859-1", $bio);
 	decode_entities($bio);
