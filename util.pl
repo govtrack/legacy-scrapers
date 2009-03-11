@@ -431,12 +431,22 @@ sub ParseDateTimeValue {
 	if ($_[0] !~ /^(\d\d\d\d)-(\d\d)-(\d\d)(T(\d\d):(\d\d):(\d\d)-0[45]:00)?$/) { die; }
 	return ($1, $2, $3, $5, $6, $7);
 }
+sub ParseISODateTime {
+	if ($_[0] !~ /^(\d\d\d\d)-(\d\d)-(\d\d)(T(\d\d):(\d\d):(\d\d)(\.\d+)(Z|-0[45]:00))?$/) { die; }
+	return FormDateTime($1, $2, $3, $5, $6, $7);
+}
 sub DateTimeToDBString {
 	my ($year, $month, $date, $hour, $minute, $second) = ParseDateTimeValue($_[0]);
 	if (!defined($hour)) {
 		return sprintf("%04d-%02d-%02d", $year, $month, $date);
 	}
 	return sprintf("%04d-%02d-%02d %02d:%02d:%02d", $year, $month, $date, $hour, $minute, $second);
+}
+sub DateTimeToDate {
+	my ($year, $month, $date, $hour, $minute, $second) = ParseDateTimeValue($_[0]);
+	$year -= 1900;
+	$month--;
+	return timelocal($second, $minute, $hour, $date, $month, $year);
 }
 	
 sub NodeListUnion {
@@ -613,13 +623,26 @@ sub WriteStatus {
 
 sub Download {
 	my $URL = shift;
+	my %opts = @_;
 	
-	my $key = md5_base64($URL);
+	my $postopts = '';
+	if ($opts{post}) {
+		for my $k (sort(keys(%{ $opts{post} }))) {
+			if ($postopts eq '') {
+				$postopts = '?';
+			} else {
+				$postopts .= '&';
+			}
+			$postopts .= $k . '=' . $opts{post}{$k};
+		}
+	}
+	
+	my $key = md5_base64($URL . $postopts);
 	$key =~ s#/#-#g;
 	if ($key !~ /^(.)(.)/) { die; }
 	my $fn = "../mirror/$1/$2/$key";
 	
-	if ($ENV{CACHED} && -e $fn) {
+	if ($ENV{CACHED} && -e $fn && !$opts{nocache}) {
 		my $data;
 		gunzip $fn => \$data or die "gzip failed: $GunzipError\n";
 		my ($dev,$ino,$mode,$nlink,$uid,$gid,$rdev,$size,
@@ -629,18 +652,25 @@ sub Download {
 	}
 	
 	sleep(1);
-	my $response = $UA->get($URL);
+	my $response;
+	if (!$opts{post}) {
+		$response = $UA->get($URL);
+	} else {
+		$response = $UA->post($URL, $opts{post});
+	}
 	if (!$response->is_success) {
-		warn "Could not fetch $URL";
+		warn "Could not fetch $URL: " . $response->message;
 		return undef;
 	}
 
 	my $data = $response->content;
-
+	
 	$HTTP_BYTES_FETCHED += length($data);
 	
-	mkdir '../mirror';
-	gzip \$data => $fn;
+	if (!$opts{nocache}) {
+		mkdir '../mirror';
+		gzip \$data => $fn;
+	}
 	
 	return ($data, time);
 }

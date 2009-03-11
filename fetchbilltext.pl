@@ -31,6 +31,8 @@ my @statuslist_h = (
 	lth,  #    Laid on Table in House
 	oph,  #    Ordered to be Printed House
 	pch,  #    Placed on Calendar House
+	ah,   # Amendment in House (never seen this but have seen 'as'/'as2' on HR 1, 111)
+	ah2,  # Amendment in House (see above)
 	fah,  #    Failed Amendment House
 	ath,  #    Agreed to House
 	cph,  #    Considered and Passed House
@@ -66,6 +68,8 @@ my @statuslist_s = (
 	lts,  #    Laid on Table in Senate
 	ops,  #    Ordered to be Printed Senate
 	pcs,  #    Placed on Calendar Senate
+	as,   # Amendment in Senate
+	as2,  # Amendment in Senate (again?)
 	ats,  #    Agreed to Senate
 	cps,  #    Considered and Passed Senate
 	fps,  #    Failed Passage Senate
@@ -199,7 +203,7 @@ sub FetchBillTextPDF {
 	
 	my @statuses;
 	
-	while ($gpolist =~ /cong_bills\&docid=f\:$type$number([a-z]+)\.txt\s*\"/g) {
+	while ($gpolist =~ /cong_bills\&docid=f\:$type$number([a-z][a-z0-9]+)\.txt\s*\"/g) {
 		my $status = $1;
 		push @statuses, $status;
 	}
@@ -390,7 +394,9 @@ sub FetchBillTextHTML2 {
 	if ($htmlpage !~ s/^[\w\W]*?<p>\s*([HRESCONJ\.]+ *$number R?($status|[A-Z]{2,3})(\dS)?[\n\r])/$1/i
 		&& $htmlpage !~ s/^[\w\W]*?\n\s*([HRESCONJ\.]+ *$number R?($status|[A-Z]{2,3})(\dS)?<p>[\n\r])/$1/i
 		&& ($status ne 'enr' || $htmlpage !~ s/^[\w\W]*?<p>\s*([HRESCONJ\.]+ ?$number[\n\r])/$1/i)
-		&& $htmlpage !~ s/^[\w\W]*?<p>(<h3><b>Suspend the Rules and Pass the Bill)/$1/i) {
+		&& $htmlpage !~ s/^[\w\W]*?<p>(<h3><b>Suspend the Rules and Pass the Bill)/$1/i
+		&& (($status ne 'as' && $status ne 'as2') || $htmlpage !~ s/^[\w\W]*?(<p>AMENDMENT NO. <b>\d+<\/b>\s*<p><i39>Purpose: In the nature of a substitute.<\/i39>)/$1/i)
+		) {
 		warn "Could not find start of bill text for $session/$type$number/$status";
 		return;
 	}

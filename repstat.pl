@@ -1,26 +1,31 @@
 #!/usr/bin/perl
 
+# to regenerate all stats:
+# for x in {101..111}; do echo $x; perl repstat.pl REPSTATS $x; done
+
 require "general.pl";
 require "db.pl";
 
 my %Person;
+my $session;
 my $outdir;
 
 if ($ARGV[0] eq "REPSTATS" || $ARGV[0] eq "PEOPLEXML") {
 	if ($ARGV[1] eq "") { die "Specify session!"; }
-	$outdir = "../data/us/$ARGV[1]/repstats";
+	$session = $ARGV[1];
+	$outdir = "../data/us/$session/repstats";
 	mkdir $outdir;
 	GovDBOpen();
-	GetPeopleList($ARGV[1]);
-	LoadOldData($ARGV[1]);
-	GenStats($ARGV[1]) if ($ARGV[0] eq "REPSTATS");
+	GetPeopleList($session);
+	LoadOldData($session);
+	GenStats($session) if ($ARGV[0] eq "REPSTATS");
 	DBClose();
 }
 
 1;
 
 sub DoRepStats {
-	my $session = shift;
+	$session = shift;
 	$outdir = "../data/us/$session/repstats";
 	mkdir $outdir;
 	GetPeopleList($session);
@@ -32,7 +37,7 @@ sub GetPeopleList {
 	my $session = shift;
 
 	# WRITE OUT PERSON DATABASE GENERAL INFO
-	my $reps = DBSelect(HASH, people, [id, firstname, middlename, lastnameenc, namemod, nickname, birthday, gender, religion, osid, bioguideid], []);
+	my $reps = DBSelect(HASH, people, [id, firstname, middlename, lastnameenc, namemod, nickname, birthday, gender, religion, osid, bioguideid, metavidid, youtubeid], []);
 
 	open PEOPLE, ">$outdir/people.xml";
 	print PEOPLE '<?xml version="1.0" ?>' . "\n";
@@ -59,7 +64,8 @@ sub GetPeopleList {
 		print PEOPLE " religion='$rep{religion}'" if $rep{religion} ne "";
 		print PEOPLE " osid='$rep{osid}'" if $rep{osid} ne "";
 		print PEOPLE " bioguideid='$rep{bioguideid}'" if $rep{bioguideid} ne "";
-		print PEOPLE " bioguideid='$rep{metadivid}'" if $rep{metavidid} ne "";
+		print PEOPLE " metavidid='$rep{metavidid}'" if $rep{metavidid} ne "";
+		print PEOPLE " youtubeid='$rep{youtubeid}'" if $rep{youtubeid} ne "";
 		
 		$Person{$rep{id}}{NAME} = "$rep{firstname} $rep{lastnameenc}";
 
@@ -337,7 +343,6 @@ sub LoadOldData {
 				if ($at->nodeName =~ /^stat-/) { next; }
 				if ($at->nodeName =~ /Pct$/) { next; }
 				if ($at->nodeName =~ /^WordsPerSpeech$/) { next; }
-				if ($at->nodeName =~ /^Last/) { next; }
 				$Person{$id}{$at->nodeName} = $at->nodeValue;
 			}
 			foreach my $hs ($st->findnodes('hist-stat')) {
@@ -346,7 +351,6 @@ sub LoadOldData {
 					if ($at->nodeName =~ /^stat-/) { next; }
 					if ($at->nodeName =~ /Pct$/) { next; }
 					if ($at->nodeName =~ /^WordsPerSpeech$/) { next; }
-					if ($at->nodeName =~ /^Last/) { next; }
 					$Person{$id}{hist}{$hs->getAttribute('time')}{$at->nodeName} = $at->nodeValue;
 				}
 			}
@@ -444,6 +448,11 @@ sub WriteStat {
 	$stddev /= $n;
 	$stddev = sqrt($stddev);
 	
+	# When there's no data for a session, don't write any values.
+	# If we do, we write e.g. FirstSponsorDate="" and that messes
+	# things up later.
+	if ($stddev == 0) { return; }
+	
 	print "$sortkey mean=$mean stddev=$stddev IQR=[$q1, $q3]\n";
 
 	# write out to disk
@@ -479,7 +488,7 @@ sub WriteStat {
 
 		if (!-e "$outdir.person/$id.xml") {
 			open P, ">$outdir.person/$id.xml";
-			print P "<statistics id='$p' generated='$now'>\n";
+			print P "<statistics session='$session' id='$id' generated='$now'>\n";
 			close P;
 		}
 

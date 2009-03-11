@@ -5,20 +5,25 @@ use GD;
 if ($ARGV[0] eq "THUMBS") {
 	CreateThumbs($ARGV[1]);
 } elsif ($ARGV[0] eq 'IMPORT') {
+	my $pid = $ARGV[1];
 	if ($ARGV[2] =~ /http:/) {
 		system("wget -O ../data/photos/$ARGV[1].jpeg $ARGV[2]");
 	} else {
-		system("mv $ARGV[2] ../data/photos/$ARGV[1].jpeg");
+		if ($pid eq "") {
+			if ($ARGV[2] !~ /(^|\/)(\d+)\.jpeg$/) { die; }
+			$pid = $2;
+		}
+		system("cp $ARGV[2] ../data/photos/$pid.jpeg");
 	}
-	CreateThumbs($ARGV[1]);
-	open CREDIT, ">../data/photos/$ARGV[1]-credit.txt";
+	CreateThumbs($pid);
+	open CREDIT, ">../data/photos/$pid-credit.txt";
 	print CREDIT "$ARGV[3] $ARGV[4]\n";
 	close CREDIT;
 } elsif ($ARGV[0] eq 'BIOGUIDE') {
 	require "general.pl";
 	require	"db.pl";
 	GovDBOpen();
-	$ids = DBSelect(people, ['id', 'bioguideid']);
+	$ids = DBSelect("people", ['id', 'bioguideid'], ["EXISTS(SELECT * FROM people_roles WHERE personid=id AND startdate>='2004-01-01')"]);
 	DBClose();
 	for my $id (@$ids) {
 		my ($pid, $bgid) = @$id;

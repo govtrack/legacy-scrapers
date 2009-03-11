@@ -259,7 +259,7 @@ sub GetHouseCommittees {
 				# fetch info for this subcommittee
 
 				($html2, $mtime2) = Download('http://clerk.house.gov/committee_info/index.html?subcomcode=' . $housecode . $scid);
-				if ($html2) { die; }
+				if (!$html2) { die; }
 
 				$ccode = $ourcode . $scid;
 				$subname = $subcomnames{$scid};

@@ -554,7 +554,7 @@ sub GovGetBill {
 	# GET COMMITTEES
 
 	$URL = "http://thomas.loc.gov/cgi-bin/bdquery/z?d$SESSION:$BILLTYPE2$BILLNUMBER:\@\@\@C";
-	$content, $mtime2 = Download($URL);
+	($content, $mtime2) = Download($URL);
 	@content = split(/[\n\r]+/, $content);
 	foreach $c (@content) {
 		if ($c =~ /<a href="\/cgi-bin\/bdquery(tr)?\/R\?[^"]+">([\w\W]*)<\/a>\s*<\/td><td width="65\%">([\w\W]+)<\/td><\/tr>/i) {
@@ -574,8 +574,8 @@ sub GovGetBill {
 
 	# GET CRS TERMS
 
-	$URL = "http://thomas.loc.gov/cgi-bin/bdquery/z?d$SESSION:$BILLTYPE2$BILLNUMBER:\@\@\@J&summ2=m&";
-	$content, $mtime2 = Download($URL);
+	$URL = "http://thomas.loc.gov/cgi-bin/bdquery/z?d$SESSION:$BILLTYPE2$BILLNUMBER:\@\@\@J";
+	($content, $mtime2) = Download($URL);
 	@content = split(/[\n\r]+/, $content);
 	foreach $c (@content) {
 		if ($c =~ /\@FIELD\(FLD001\+\@4/i ) {
@@ -590,7 +590,7 @@ sub GovGetBill {
 	# GET RELATED BILLS
 
 	$URL = "http://thomas.loc.gov/cgi-bin/bdquery/z?d$SESSION:$BILLTYPE2$BILLNUMBER:\@\@\@K";
-	$content, $mtime2 = Download($URL);
+	($content, $mtime2) = Download($URL);
 	@content = split(/[\n\r]+/, $content);
 	foreach $c (@content) {
 		if ($c =~ /<tr><td width="150"><a href="\/cgi-bin\/bdquery(tr)?\/z\?d(\d\d\d):\w+\d\d\d\d\d:">$BillPattern<\/a><\/td><td>([^<]+)<\/td><\/tr>/i) {
@@ -618,7 +618,7 @@ sub GovGetBill {
 	# GET AMENDMENTS
 
 	$URL = "http://thomas.loc.gov/cgi-bin/bdquery/z?d$SESSION:$BILLTYPE2$BILLNUMBER:\@\@\@A";
-	$content, $mtime2 = Download($URL);
+	($content, $mtime2) = Download($URL);
 	@content = split(/[\n\r]+/, $content);
 	foreach $c (@content) {
 		if ($c =~ /<a href="\/cgi-bin\/bdquery\/z\?d$SESSION:(HZ|SP)\d+:">/i ) {

@@ -10,6 +10,7 @@ require "indexing.pl";
 if (-e '../gis/loaddistricts_109.pl') {
 	require "../gis/loaddistricts_109.pl";
 	require "../gis/loaddistricts_110.pl";
+	require "../gis/loaddistricts_111.pl";
 } else {
 	print STDERR "Not loading GIS module...\n";
 	$SkipMaps = 1;
@@ -48,8 +49,7 @@ sub DownloadRollCallVotesAll {
 	# Download house roll call votes
 	my $URL = "http://clerk.house.gov/evs/$YEAR/index.asp";
 	my ($content, $mtime) = Download($URL);
-	if (!$content) { return; }
-	if ($content =~ /vote.asp\?year=$YEAR\&rollnumber=(\d+)/) {
+	if ($content && $content =~ /vote.asp\?year=$YEAR\&rollnumber=(\d+)/) {
 		my $maxHRoll = $1;
 		for (my $i = 1; $i <= $maxHRoll; $i++) {
 			if (GetHouseVote($YEAR, $i, $skipifexists)) {
@@ -61,9 +61,8 @@ sub DownloadRollCallVotesAll {
 	# Download all of the senate roll call votes
 	$URL = "http://www.senate.gov/legislative/LIS/roll_call_lists/vote_menu_$SESSION" . "_" . "$SUBSESSION.htm";
 	my ($content, $mtime) = Download($URL);
-	if (!$content) { return; }
-	if ($content =~ /Unspecified/) { die "Senate vote list has an 'Unspecified' vote."; }
-	if ($content =~ /roll_call_vote_cfm\.cfm\?congress=$SESSION\&session=$SUBSESSION\&vote=(\d+)/) {
+	if ($content && $content =~ /Unspecified/) { die "Senate vote list has an 'Unspecified' vote."; }
+	if ($content && $content =~ /roll_call_vote_cfm\.cfm\?congress=$SESSION\&session=$SUBSESSION\&vote=(\d+)/) {
 		my $maxSRoll = $1;
 		for (my $i = int($maxSRoll); $i >= 1; $i--) {
 			if ($skipifexists==1 && -e "../data/us/$SESSION/rolls/s$YEAR-$i.xml") { next; }
@@ -367,6 +366,8 @@ sub GetSenateVote {
 				my $state = $2;
 				my $vote = $3;
 				
+				$name =~ s/Burdick, Quentin S/Burdick, Quentin N/;
+				
 				my $id = PersonDBGetID(
 					title => "sen",
 					name => $name,
@@ -534,6 +535,9 @@ sub GetHouseVote {
 		my $name = $voter->findvalue('legislator/@unaccented-name');
 		my $state = $voter->findvalue('legislator/@state');
 		if ($name eq "") { $name = $voter->findvalue('legislator'); }
+		
+		if ($name eq "Smith (OR)" && $YEAR == 1990) { $name = "Smith, Robert (OR)"; }
+
 		$name =~ s/ \(\w\w\)$//;
 
 		my $id;

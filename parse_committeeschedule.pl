@@ -53,7 +53,7 @@ sub ClearChamberCommitteeMeetings {
 sub FetchHouseCommitteeSchedule {
 	my $xml = shift;
 
-	my ($content, $mtime) = Download("http://thomas.loc.gov/cgi-bin/dailydigest");
+	my ($content, $mtime) = Download("http://thomas.loc.gov/cgi-bin/dailydigest", nocache => 1);
 	if (!$content) { return; }
 
 	$content =~ s/:\n/: /g;
