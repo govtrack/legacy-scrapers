@@ -4,6 +4,7 @@ require "general.pl";
 require "db.pl";
 
 my $billSummaryFile;
+my $holdBillSummaryFileWrite;
 
 if ($ARGV[0] eq "MAKE_INDEX" || $ARGV[0] eq "INDEX_BILLS") { IndexBills(); }
 if ($ARGV[0] eq "MAKE_INDEX" || $ARGV[0] eq "INDEX_VOTES") { IndexVotes(); }
@@ -21,7 +22,7 @@ sub IndexBills {
 	#DBDelete(billstatus, [$w]);
 	#DBDelete(billindex, [$w]);
 	
-	$holdBillSummaryFileWrite = 1;
+	$holdBillSummaryFileWrite = $session;
 
 	my @bills = GetBillList($session);
 	foreach my $b (@bills) {
@@ -143,17 +144,27 @@ sub IndexBill {
 	# Update the bill summary XML file.
 
 	my $bsfn = "../data/us/$session/bills.index.xml";
-	if (!$billSummaryFile) {
+	my $bsf;
+	if ($holdBillSummaryFileWrite == $session) {
+		if (!$billSummaryFile) {
+			if (-e $bsfn) {
+				$billSummaryFile = $XMLPARSER->parse_file($bsfn);
+			} else {
+				$billSummaryFile = $XMLPARSER->parse_string("<bills session=\"$session\"/>");
+			}
+		}
+		$bsf = $billSummaryFile;
+	} else {
 		if (-e $bsfn) {
-			$billSummaryFile = $XMLPARSER->parse_file($bsfn);
+			$bsf = $XMLPARSER->parse_file($bsfn);
 		} else {
-			$billSummaryFile = $XMLPARSER->parse_string("<bills session=\"$session\"/>");
+			$bsf = $XMLPARSER->parse_string("<bills session=\"$session\"/>");
 		}
 	}
-	my ($node) = $billSummaryFile->findnodes("bills/bill[\@type='$type' and \@number='$number']");
+	my ($node) = $bsf->findnodes("bills/bill[\@type='$type' and \@number='$number']");
 	if (!$node) {
-		$node = $billSummaryFile->createElement("bill");
-		$billSummaryFile->documentElement->appendChild($node);
+		$node = $bsf->createElement("bill");
+		$bsf->documentElement->appendChild($node);
 		$node->setAttribute('type', $type);
 		$node->setAttribute('number', $number);
 	}
@@ -161,7 +172,7 @@ sub IndexBill {
 	$node->setAttribute('official-title', $officialtitle);
 	$node->setAttribute('last-action', $lastactiondate);
 	$node->setAttribute('status', $status->nodeName);
-	$billSummaryFile->toFile($bsfn, 1) if (!$holdBillSummaryFileWrite);
+	$bsf->toFile($bsfn, 1) if ($holdBillSummaryFileWrite != $session);
 }
 
 sub IndexBill2 {

@@ -12,12 +12,11 @@ if ($ARGV[0] eq "POPULARMONITORS") {
 1;
 
 sub GetPopularMonitors {
+	my %Monitors;
 	my %billmatrix;
 	my %billcount;
+	my %monmatrix;
 	
-	# clear the updating field of the monitor matrix
-	DBUpdate(monitormatrix, [], countupdating => 0, tfidfupdating => 0);
-
 	# get a count of subscribers for each monitor, which we need
 	# to build the TFIDF.
 	foreach my $monitors (DBSelectVector('users', ['monitors'])) {
@@ -47,7 +46,8 @@ sub GetPopularMonitors {
 				for my $m2 (@mons) {
 					if ($m1 eq $m2) { next; }
 					my $idf = 1.0 / $Monitors{$m2};
-					DBExecute("INSERT INTO monitormatrix (monitor1, monitor2, count, countupdating, tfidf, tfidfupdating) VALUES (\"$m1\", \"$m2\", 0, 1, 0, $idf) ON DUPLICATE KEY UPDATE countupdating=countupdating+1, tfidfupdating=tfidfupdating+$idf");
+					$monmatrix{$m1}{$m2}{count}++;
+					$monmatrix{$m1}{$m2}{tfidf} += $idf;
 				}
 			}
 		}
@@ -76,11 +76,21 @@ sub GetPopularMonitors {
 	print DATA "</monitors>\n";
 	close DATA;
 
-	# copy over the countupdating column into the count column
-	DBDelete(monitormatrix, [DBSpecLE(countupdating, 2)]);
-	DBExecute("UPDATE monitormatrix SET count=countupdating, tfidf=tfidfupdating");
-	DBExecute("UPDATE monitormatrix SET countupdating=0, tfidfupdating=0");
+	# Add the monitor matrix to the database.
+	DBDelete(monitormatrix, [1]);
+	for my $m1 (keys(%monmatrix)) {
+		for my $m2 (keys(%{ $monmatrix{$m1} })) {
+			# If there is a low count, then weight the TFIDF down.
+			if ($monmatrix{$m1}{$m2}{count} < 10) {
+				$monmatrix{$m1}{$m2}{tfidf} *= sqrt($monmatrix{$m1}{$m2}{count} / 10);
+			}
+			
+			if ($monmatrix{$m1}{$m2}{tfidf} < .2) { next; }
+			DBExecute("INSERT DELAYED INTO monitormatrix (monitor1, monitor2, count, tfidf) VALUES (\"$m1\", \"$m2\", $monmatrix{$m1}{$m2}{count}, $monmatrix{$m1}{$m2}{tfidf})");
+		}
+	}
 	
+	# Write out the bill matrix.
 	open DATA, ">../data/misc/monitors.billmatrix.xml";
 	print DATA "<bill-matrix>\n";
 	my @bills = keys(%billmatrix);

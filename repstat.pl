@@ -72,8 +72,8 @@ sub GetPeopleList {
 		my @role = DBSelectFirst(people_roles, [type, state, district, party],
 			["personid=$rep{id}",
 			 "(type='rep' or type='sen')",
-			 "startdate<='" . DateToDBString(time) . "'",
-			 "enddate>='" . DateToDBString(time) . "'",
+			 "startdate<='" . DateToDBString(EndOfSession($session)) . "'",
+			 "enddate>='" . DateToDBString(StartOfSession($session)) . "'",
 				 ]);
 		if (defined($role[0])) {
 			if ($role[3] =~ /^(.)/) { $role[3] = $1; }
@@ -164,6 +164,7 @@ sub GenStats {
 	NumCosponsor => 'Number of bills (excluding resolutions) cosponsored by this representative.',
 	FirstSponsoredDate => 'Introduced date of the first bill (excluding resolutions) sponsored by this representative.',
 	LastSponsoredDate => 'Introduced date of the last bill (excluding resolutions) sponsored by this representative.',
+	LeaderFollower => 'A leader-follower score.',
 	#Speeches => 'Number of debates this representative has risen to say something.',
 	#SpeechesWordsCount => 'Number of words total spoken by the representative in counted debates.',
 	#WordsPerSpeech => 'Average number of words per debate made by the representative.',
@@ -174,6 +175,7 @@ sub GenStats {
 	WriteStat(SponsorIntroduced, 0, introduced, NumSponsor, SponsorIntroduced, SponsorIntroducedPct, FirstSponsoredDate, LastSponsoredDate);
 	WriteStat(SponsorEnacted, 0, enacted, NumSponsor, SponsorEnacted, FirstSponsoredDate, LastSponsoredDate);
 	WriteStat(NumCosponsor, 0, cosponsor, NumCosponsor, FirstSponsoredDate, LastSponsoredDate);
+	WriteStat(LeaderFollower, 0, leaderfollower, LeaderFollower);
 	#WriteStat(Speeches, 0, speeches, Speeches, WordsPerSpeech, SpeechesWordsCount);
 	#WriteStat(WordsPerSpeech, 0, verbosity, Speeches, WordsPerSpeech);
 	WriteStat(Spectrum, 0, spectrum, Spectrum);
@@ -187,16 +189,28 @@ sub GenStats {
 	}
 }
 
+sub Year {
+	my $date = shift;
+	if ($date !~ /^(\d\d\d\d)-(\d\d)-/) { die $date; }
+	my ($year, $mon) = ($1, $2);
+	return "$year";
+}
+
+sub Quarter {
+	my $date = shift;
+	if ($date !~ /^(\d\d\d\d)-(\d\d)-/) { die $date; }
+	my ($year, $mon) = ($1, $2);
+	my $q = int(($mon-1) / 3) + 1;
+	return "$year-Q$q";
+}
+
 sub IncStat {
 	my ($id, $st, $date) = @_;
 	$Person{$id}{$st}++;
 
 	if ($date) {
-		if ($date !~ /^(\d\d\d\d)-(\d\d)-/) { die $date; }
-		my ($year, $mon) = ($1, $2);
-		my $q = int(($mon-1) / 3) + 1;
-
-		$Person{$id}{hist}{"$year-Q$q"}{$st}++;
+		my $q = Quarter($date);
+		$Person{$id}{hist}{$q}{$st}++;
 	}
 }
 
@@ -241,6 +255,11 @@ sub ScanVotes {
 sub ScanBills {
 	my $session = shift;
 	
+	# Make a hashtable that counts for each bill sponsor,
+	# how many times another rep was a cosponsor, plus
+	# a special entry to count total sponsored bills.
+	my %FriendTable;
+	
 	my $datadir = "../data/us/$session/bills";
 	@D = ScanDir($datadir);
 	foreach $d (@D) {
@@ -258,12 +277,16 @@ sub ScanBills {
 		IncStat($sponsor, NumSponsor, $introdate);
 		CheckFirstDate($sponsor, $introdate, FirstSponsoredDate, "$datadir/$d");
 		CheckLastDate($sponsor, $introdate, LastSponsoredDate, "$datadir/$d");
+		$FriendTable{SESSION}{$sponsor}{TOTAL}++;
+		$FriendTable{Year($introdate)}{$sponsor}{TOTAL}++;
 		
 		foreach my $cosp ($x->findnodes('cosponsors/cosponsor')) {
 			$cosp = $cosp->getAttribute('id');
 			IncStat($cosp, NumCosponsor, $introdate);
 			CheckFirstDate($cosp, $introdate, FirstSponsoredDate, "$datadir/$d");
 			CheckLastDate($cosp, $introdate, LastSponsoredDate, "$datadir/$d");
+			$FriendTable{SESSION}{$sponsor}{$cosp}++;
+			$FriendTable{Year($introdate)}{$sponsor}{$cosp}++;
 		}
 
 		# If this bill was not enacted, for any identical bills that were
@@ -281,6 +304,49 @@ sub ScanBills {
 
 		if ($status eq "introduced") { IncStat($sponsor, SponsorIntroduced, $introdate); }
 		if ($status eq "enacted") { IncStat($sponsor, SponsorEnacted, $introdate); }
+	}
+	
+	# Use the FriendTable to compute some interesting statistics
+	# inspired by Joe Barillari.
+	for my $period (keys(%FriendTable)) {
+		for my $pa (keys(%{ $FriendTable{$period} })) {
+			my $avgasym = 0;
+			my $avgasym_mass = 0;
+			
+			my $friends = 0;
+			my $friends_mass = 0;
+			
+			for my $pb (keys(%{ $FriendTable{$period} })) {
+				# Note that this loops over only those that sponsored
+				# at least one bill.
+				
+				my $asymmetry = log(($FriendTable{$period}{$pa}{$pb}+1) / ($FriendTable{$period}{$pb}{$pa}+1));
+				
+				# Factor by the amount of data we have so we don't
+				# place much emphasis on bad data.
+				my $w = 1.0;
+				if ($FriendTable{$period}{$pb}{TOTAL} < 10) { $w = $FriendTable{$period}{$pb}{TOTAL}/10; }
+	
+				$avgasym += $asymmetry * $w;
+				$avgasym_mass += $w;
+				
+				$friends += $FriendTable{$period}{$pa}{$pb};
+				$friends_mass += 1;
+			}
+			
+			$avgasym /= $avgasym_mass;
+			$friends /= $friends_mass;
+			
+			# Re-scale the score back so that the scale is something
+			# like number of bills.
+			$avgasym = ($avgasym >= 0 ? 1 : -1) * (exp(abs($avgasym)) - 1);
+			
+			if ($period eq 'SESSION') {
+				$Person{$pa}{LeaderFollower} = $avgasym;
+			} else {
+				$Person{$pa}{hist}{$period}{LeaderFollower} = $avgasym;
+			}
+		}
 	}
 }
 
@@ -376,22 +442,13 @@ sub PostProc {
 sub PostProc2 {
 	my $P = shift;
 
-	$$P{NoVote} = int($$P{NoVote});
 	if ($$P{NumVote} > 0) {
 		$$P{NoVotePct} = $$P{NoVote} / $$P{NumVote};
 	}
 
-	$$P{NumSponsor} = int($$P{NumSponsor});
-	$$P{NumCosponsor} = int($$P{NumCosponsor});
-	$$P{SponsorIntroduced} = int($$P{SponsorIntroduced});
-	$$P{SponsorEnacted} = int($$P{SponsorEnacted});
 	if ($$P{NumSponsor} > 0) {
 		$$P{SponsorIntroducedPct} = $$P{SponsorIntroduced} / $$P{NumSponsor};
 	}
-
-	$$P{Speeches} = int($$P{Speeches});
-	$$P{SpeechesWordsCount} = int($$P{SpeechesWordsCount});
-	$$P{WordsPerSpeech} = $$P{Speeches}==0 ? 0 : int($$P{SpeechesWordsCount}/$$P{Speeches});
 }
 
 sub WriteStat {
@@ -458,7 +515,7 @@ sub WriteStat {
 	# write out to disk
 	my $now = time;
 	open STAT, ">$outdir/$file.xml";
-	print STAT "<?xml version=\"1.0\" encoding=\"ISO-8859-1\"?>\n";
+	print STAT "<?xml version=\"1.0\" ?>\n";
 	print STAT '<?xml-stylesheet href="stylesheet.xml" type="text/xsl" ?>' . "\n";
 	print STAT "<$file key='$sortkey' mean='$mean' stddev='$stddev' generated='$now'";
 	foreach my $c (@keys) {
@@ -480,7 +537,9 @@ sub WriteStat {
 		print STAT "<representative id='$id' ";
 		print STAT "Name='$Person{$id}{NAME}' ";
 		foreach my $key (@keys) {
-			print STAT "$key='$Person{$id}{$key}' ";
+			my $v = $Person{$id}{$key};
+			if (!defined($v)) { $v = 0; }
+			print STAT "$key='$v' ";
 		}
 		print STAT "stat-z='$zscore' ";
 		print STAT "stat-pctile='$pctiles{$Person{$id}{$sortkey}}' ";
@@ -499,10 +558,13 @@ sub WriteStat {
 		}
 		print P "stat-mean='$mean' stat-dev='$stddev' stat-z='$zscore'>\n";
 		foreach my $q (sort(keys(%{ $Person{$id}{hist} }))) {
+			if (!defined($Person{$id}{hist}{$q}{$sortkey})) { next; }
 			print P "\t<hist-stat time='$q' ";
 			foreach my $key (@keys) {
 				if ($key =~ /^(First|Last).*Date$/) { next; }
-				print P "$key='$Person{$id}{hist}{$q}{$key}' ";
+				my $v = $Person{$id}{hist}{$q}{$key};
+				if (!defined($v)) { $v = 0; }
+				print P "$key='$v' ";
 			}
 			print P "/>\n";
 		}
