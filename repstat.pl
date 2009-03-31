@@ -337,10 +337,6 @@ sub ScanBills {
 			$avgasym /= $avgasym_mass;
 			$friends /= $friends_mass;
 			
-			# Re-scale the score back so that the scale is something
-			# like number of bills.
-			$avgasym = ($avgasym >= 0 ? 1 : -1) * (exp(abs($avgasym)) - 1);
-			
 			if ($period eq 'SESSION') {
 				$Person{$pa}{LeaderFollower} = $avgasym;
 			} else {
