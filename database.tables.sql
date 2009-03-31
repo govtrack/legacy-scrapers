@@ -76,10 +76,12 @@ DROP TABLE IF EXISTS `people_votes`;
 CREATE TABLE `people_votes` (
   `personid` int(11) NOT NULL,
   `voteid` varchar(10) collate utf8_unicode_ci NOT NULL,
+  `date` datetime NOT NULL,
   `vote` enum('+','-','0','P','X') collate utf8_unicode_ci NOT NULL,
   `displayas` tinytext collate utf8_unicode_ci NOT NULL,
   PRIMARY KEY  (`personid`,`voteid`),
-  KEY `SECONDARY` (`voteid`,`personid`)
+  KEY `SECONDARY` (`voteid`,`personid`),
+  KEY `bydate` (`personid`,`date`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
 
 --
@@ -99,7 +101,7 @@ CREATE TABLE `people_committees` (
   `senatecode` text collate utf8_unicode_ci NOT NULL,
   PRIMARY KEY  (`people_committee_id`),
   KEY `personid` (`personid`)
-) ENGINE=MyISAM AUTO_INCREMENT=118633 DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+) ENGINE=MyISAM AUTO_INCREMENT=122144 DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
 
 --
 -- Table structure for table `committees`
@@ -126,4 +128,4 @@ CREATE TABLE `committees` (
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2009-02-02 21:26:43
+-- Dump completed on 2009-03-31 11:22:32

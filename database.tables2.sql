@@ -150,8 +150,6 @@ CREATE TABLE `monitormatrix` (
   `monitor2` text NOT NULL,
   `count` int(11) NOT NULL,
   `tfidf` float NOT NULL,
-  `countupdating` int(11) NOT NULL,
-  `tfidfupdating` float NOT NULL,
   PRIMARY KEY  (`monitor1`(127),`monitor2`(127)),
   KEY `monitor1` (`monitor1`(11),`count`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8;
@@ -172,7 +170,7 @@ CREATE TABLE `questions` (
   PRIMARY KEY  (`id`),
   KEY `question` (`question`),
   KEY `topic` (`topic`(16))
-) ENGINE=MyISAM AUTO_INCREMENT=5815 DEFAULT CHARSET=utf8;
+) ENGINE=MyISAM AUTO_INCREMENT=11132 DEFAULT CHARSET=utf8;
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
 
 /*!40101 SET SQL_MODE=@OLD_SQL_MODE */;
@@ -183,4 +181,4 @@ CREATE TABLE `questions` (
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2009-02-02 21:26:44
+-- Dump completed on 2009-03-31 11:22:32
