@@ -1,5 +1,8 @@
 #!/usr/bin/perl
 
+# to regenerate all indexes:
+# for x in {101..111}; do echo $x; perl indexing.pl MAKE_INDEX $x; done
+
 require "general.pl";
 require "db.pl";
 
@@ -213,7 +216,7 @@ sub IndexVote {
 	my $maintableonly = shift;
 
 	if ($ENV{REMOTE_DB}) { return; }
-
+	
 	my $xml = $XMLPARSER->parse_file("../data/us/$session/rolls/$id.xml")->documentElement;
 
 	# Compose a description of the result.
@@ -318,9 +321,11 @@ sub IndexVote {
 		if ($n->getAttribute('id') == 0) { next; }
 		my $v = $n->getAttribute('vote');
 		if ($v ne "+" && $v ne "-" && $v ne "0" && $v ne "P") { $v = "X"; }
+		if (!defined($n->getAttribute('value'))) { warn $id; }
 		DBInsert(DELAYED, people_votes, 
 			personid => $n->getAttribute('id'),
 			voteid => $id,
+			date => $values{date},
 			vote => $v,
 			displayas => $n->getAttribute('value')
 			);
