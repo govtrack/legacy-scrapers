@@ -39,8 +39,8 @@ CREATE TABLE `billindex` (
   `session` int(11) NOT NULL default '0',
   `type` varchar(2) collate utf8_unicode_ci NOT NULL default '',
   `number` int(11) NOT NULL default '0',
-  `idx` varchar(15) collate utf8_unicode_ci NOT NULL default '',
-  `value` text collate utf8_unicode_ci NOT NULL,
+  `idx` enum('sponsor','cosponsor','crs','publiclawnumber','committee') collate utf8_unicode_ci NOT NULL,
+  `value` varchar(200) collate utf8_unicode_ci NOT NULL,
   KEY `session` (`session`,`type`,`number`,`idx`),
   KEY `index` (`idx`,`value`(127),`session`),
   KEY `session_2` (`session`,`idx`,`value`(32))
@@ -170,7 +170,7 @@ CREATE TABLE `questions` (
   PRIMARY KEY  (`id`),
   KEY `question` (`question`),
   KEY `topic` (`topic`(16))
-) ENGINE=MyISAM AUTO_INCREMENT=11132 DEFAULT CHARSET=utf8;
+) ENGINE=MyISAM AUTO_INCREMENT=12748 DEFAULT CHARSET=utf8;
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
 
 /*!40101 SET SQL_MODE=@OLD_SQL_MODE */;
@@ -181,4 +181,4 @@ CREATE TABLE `questions` (
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2009-03-31 11:22:32
+-- Dump completed on 2009-04-19 20:48:40
