@@ -178,6 +178,7 @@ sub GetBillFullText {
 		my ($type, $number) = ($1, $2);
 		unlink "$textdir/$type/$type$number.pdf";
 		unlink "$textdir/$type/$type$number.txt";
+		unlink "$textdir/$type/$type$number.html";
 		unlink "$textdir/$type/$type$number.xml";
 		my @stz = GetBillStatusList($type);
 		for (my $sli = scalar(@stz)-1; $sli>=0; $sli--) {
@@ -185,6 +186,7 @@ sub GetBillFullText {
 			if (-e "$textdir/$type/$file.pdf") {
 				symlink "$file.pdf", "$textdir/$type/$type$number.pdf";
 				symlink "$file.txt", "$textdir/$type/$type$number.txt";
+				symlink "$file.html", "$textdir/$type/$type$number.html";
 				symlink "$file.xml", "$textdir/$type/$type$number.xml";
 				last;
 			}
