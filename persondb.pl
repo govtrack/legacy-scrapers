@@ -1,3 +1,5 @@
+use Text::Unidecode;
+  
 require "db.pl";
 require "util.pl";
 
@@ -97,14 +99,14 @@ sub PersonDBGetID {
 	my $matches2score;
 	my $match;
 
-	# Normalize extended characters (also
-	# repeated below).
-	$name =~ s/é/e/g;
-	$name =~ s/ú/u/g;
+	# Normalize extended characters (also repeated below).
+	$name = unidecode($name);
 
 	# Split last name, first name
 
 	# Henry C. "Hank," Jr. 
+	$name =~ s/``/"/g;
+	$name =~ s/''/"/g;
 	$name =~ s/,"/",/;
 	
 	my $lastname;
@@ -216,10 +218,9 @@ sub PersonDBGetID {
 		# Normalize extended characters in the first/middle
 		# name (also repeated above).
 		for my $n ($$match{firstname}, $$match{nickname}, $$match{namemod}, $$match{middlename}) {
-			$n =~ s/é/e/g;
-			$n =~ s/ú/u/g;
+			$n = unidecode($n);
 		}
-
+		
 		# Make list of possible first name strings
 		my @fntests = ();
 		push @fntests, [$$match{firstname}, $$match{nickname}, $$match{namemod}] if ($$match{nickname} ne "");
@@ -238,7 +239,7 @@ sub PersonDBGetID {
 		foreach my $fntest (@fntests) {
 			my $ml = fntestcmp(\@fnames, $fntest);
 			if ($ml > $fnmatch) { $fnmatch = $ml; $matchtest = $fntest; }
-			#print "$$match{id} $ml " . join("--", @fnames) . " ?  " . join("--", @{$fntest}) . "\n";
+			#print "$lastname $$match{id} $ml " . join("--", @fnames) . " ?  " . join("--", @{$fntest}) . "\n";
 		}
 
 		if ($fnmatch == 0 && scalar(@fnames) > 0) { next; }
