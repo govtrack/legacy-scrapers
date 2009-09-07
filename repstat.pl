@@ -40,6 +40,7 @@ sub GetPeopleList {
 	my @reps = DBSelect(HASH, people, [id, firstname, middlename, lastnameenc, namemod, nickname, birthday, gender, religion, osid, bioguideid, metavidid, youtubeid], []);
 
 	open PEOPLE, ">$outdir/people.xml";
+	binmode(PEOPLE, ":utf8");
 	print PEOPLE '<?xml version="1.0" ?>' . "\n";
 	print PEOPLE "<people>\n";
 	foreach my $rep (@reps) {
