@@ -23,9 +23,9 @@ if ($ARGV[0] eq "THUMBS") {
 	require "general.pl";
 	require	"db.pl";
 	GovDBOpen();
-	$ids = DBSelect("people", ['id', 'bioguideid'], ["EXISTS(SELECT * FROM people_roles WHERE personid=id AND startdate>='2004-01-01')"]);
+	@ids = DBSelect("people", ['id', 'bioguideid'], ["EXISTS(SELECT * FROM people_roles WHERE personid=id AND startdate>='2004-01-01')"]);
 	DBClose();
-	for my $id (@$ids) {
+	for my $id (@ids) {
 		my ($pid, $bgid) = @$id;
 		if ($bgid !~ /^([A-Z])(\d+)$/) { die $bgid; }
 		my ($a, $b) = ($1, $2);

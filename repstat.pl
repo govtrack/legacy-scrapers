@@ -37,12 +37,12 @@ sub GetPeopleList {
 	my $session = shift;
 
 	# WRITE OUT PERSON DATABASE GENERAL INFO
-	my $reps = DBSelect(HASH, people, [id, firstname, middlename, lastnameenc, namemod, nickname, birthday, gender, religion, osid, bioguideid, metavidid, youtubeid], []);
+	my @reps = DBSelect(HASH, people, [id, firstname, middlename, lastnameenc, namemod, nickname, birthday, gender, religion, osid, bioguideid, metavidid, youtubeid], []);
 
 	open PEOPLE, ">$outdir/people.xml";
 	print PEOPLE '<?xml version="1.0" ?>' . "\n";
 	print PEOPLE "<people>\n";
-	foreach my $rep (@{ $reps }) {
+	foreach my $rep (@reps) {
 		my %rep = %{ $rep };
 		foreach my $a (keys(%rep)) {
 			my @b = split(/\|/, $rep{$a});
@@ -89,8 +89,8 @@ sub GetPeopleList {
 		print PEOPLE " name='$Person{$rep{id}}{NAME}'";
 		print PEOPLE " >\n";
 
-		my $roles = DBSelect(people_roles, [type, startdate, enddate, party, state, district, class, url], ["personid=$rep{id}"], "ORDER BY startdate");
-		foreach my $role (@{ $roles }) {
+		my @roles = DBSelect(people_roles, [type, startdate, enddate, party, state, district, class, url], ["personid=$rep{id}"], "ORDER BY startdate");
+		foreach my $role (@roles) {
 			my @role = @{ $role };
 			$role[3] = htmlify($role[3], 1);
 			print PEOPLE "\t\t<role";
@@ -104,8 +104,8 @@ sub GetPeopleList {
 			print PEOPLE " />\n";
 		}
 
-		my $comms = DBSelect(people_committees, [committeeid, role], ["personid=$rep{id}"]);
-		foreach my $comm (@{ $comms }) {
+		my @comms = DBSelect(people_committees, [committeeid, role], ["personid=$rep{id}"]);
+		foreach my $comm (@comms) {
 			my ($cid, $role) = @{ $comm };
 			my ($cname, $cparent) = DBSelectFirst(committees, [thomasname, parent], ["id='$cid'"]);
 			my $csname = "";

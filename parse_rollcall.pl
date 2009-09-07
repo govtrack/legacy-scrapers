@@ -753,8 +753,8 @@ sub MakeVoteMap {
 	my %votebreakdown;
 	
 	if (!defined(%PersonPoliticalParties)) {
-		my $parties = DBSelect(people_roles, [personid, party], [$PERSON_ROLE_NOW]);
-		foreach my $p (@$parties) {
+		my @parties = DBSelect(people_roles, [personid, party], [$PERSON_ROLE_NOW]);
+		foreach my $p (@parties) {
 			$PersonPoliticalParties{$$p[0]} = $$p[1];
 		}
 	}
@@ -840,7 +840,7 @@ sub MakeVoteMap {
 
 	my %PersonRoles;
 	if (scalar(@voterids) == 0) { warn "Failed to get any IDs of people in $votefile?!?"; return; }
-	foreach my $r (@{ DBSelect(people_roles, [personid, state, district], [DBSpecIn(personid, @voterids), $PERSON_ROLE_NOW, "type = '$reptype'"]) }) {
+	foreach my $r (DBSelect(people_roles, [personid, state, district], [DBSpecIn(personid, @voterids), $PERSON_ROLE_NOW, "type = '$reptype'"])) {
 		$PersonRoles{"$$r[0]:$session"} = [$$r[1], $$r[2]];
 	}
 

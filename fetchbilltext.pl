@@ -685,7 +685,7 @@ sub FindSimilarBills {
 	# (16 bit hamming distance), which means three of the four
 	# blocks must match, from any of the bill versions.
 	# We ignore status.
-	my $results = DBSelect(billtextsimhash,
+	my @results = DBSelect(billtextsimhash,
 		["session, type, number, status, simhash"],
 		#["(block1=$b1 and block2=$b2 and block3=$b3) or (block1=$b1 and block2=$b2 and block4=$b4) or (block1=$b1 and block3=$b3 and block4=$b4) or (block2=$b2 and block3=$b3 and block4=$b4)"]
 		[$comp]
@@ -694,7 +694,7 @@ sub FindSimilarBills {
 	# Filter out the results that have a hamming distance
 	# greater than 5.
 	my %matches;
-	for my $r (@$results) {
+	for my $r (@results) {
 		my ($s, $t, $n, $st, $h) = @$r;
 		if ($matches{"$s$t$n"}) { next; }
 		

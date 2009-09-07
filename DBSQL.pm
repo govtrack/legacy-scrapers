@@ -1,10 +1,23 @@
+package DBSQL;
+
+use strict;
+use warnings;
+
 use DBI;
 
 my $dbh;
+my $DEBUG_SQL = 0 || $ENV{SQL_DEBUG};
 
 1;
 
-sub DBOpen { # ($dbname, $username, $password)
+sub IsOpen {
+	return defined($dbh);
+}
+
+sub Open { # ($dbname, $username, $password)
+	# The first argument is the name of the database
+	# or if it's on another computer, database@host.
+
 	my $dbname = shift;
 	my $db_user_name = shift;
 	my $db_password = shift;
@@ -18,52 +31,67 @@ sub DBOpen { # ($dbname, $username, $password)
 
 	my $sth = $dbh->prepare('SET NAMES "UTF8"');
 	$sth->execute();
+	$sth->finish();
 }
 
-sub DBClose {
+sub Close {
 	if (!defined($dbh)) { die "Database not open."; }
 	$dbh->disconnect();
+	undef $dbh;
 }
 
-sub DBSelectByID { # ($table, $id, \@fields, [other select options]) => array
+sub Execute {
+	my $sth = $dbh->prepare($_[0]);
+	$sth->execute();
+	if ($sth->rows) {
+		my @ret = @{ $sth->fetchall_arrayref() };
+		$sth->finish();
+		return @ret;
+	} else {
+		my @ret = ();
+		return @ret;
+	}
+}
+
+sub SelectByID { # ($table, $id, \@fields, [other select options]) => array
 	my $table = shift;
 	my $id = shift;
 	my $fields = shift;
-	return DBSelect("first", @_, $table, $fields, [DBSpecEQ(id, $id)]);
+	return Select("first", @_, $table, $fields, [SpecEQ('id', $id)]);
 }
 
-sub DBSelectFirst { # ([options], $table, \@fields, \@specs) => array
+sub SelectFirst { # ([options], $table, \@fields, \@specs) => array
 	unshift @_, "first";
-	return &DBSelect;
+	return &Select;
 }
 
-sub DBSelectAll { # ([options], $table, \@fields, \@specs) => arrayref of arrayrefs
+sub SelectAll { # ([options], $table, \@fields, \@specs) => array of arrayrefs
 	unshift @_, "all";
-	return &DBSelect;
+	return &Select;
 }
 
-sub DBSelectVector { # ($table, \@fields, \@specs) => array
+sub SelectVector { # ($table, \@fields, \@specs) => array
 	unshift @_, "all";
-	my $all = &DBSelect;
+	my @all = &Select;
 	my @ret;
-	foreach my $x (@{$all}) {
+	foreach my $x (@all) {
 		push @ret, @{ $x };
 	}
 	return @ret;
 }
 
-sub DBSelectVectorDistinct { # ($table, \@fields, \@specs) => array
+sub SelectVectorDistinct { # ($table, \@fields, \@specs) => array
 	unshift @_, "all";
 	unshift @_, "distinct";
-	my $all = &DBSelect;
+	my @all = &Select;
 	my @ret;
-	foreach my $x (@{$all}) {
+	foreach my $x (@all) {
 		push @ret, @{ $x };
 	}
 	return @ret;
 }
 
-sub DBSelect { # ([distinct], [first|all], [hash], $table, \@fields, \@specs, $limits) => array or arrayref
+sub Select { # ([DISTINCT], [FIRST|ALL], [HASH], $table, \@fields, \@specs, $limits) => array or arrayref
 	if (!defined($dbh)) { die "Database not open."; }
 	
 	my $first = 0;
@@ -82,17 +110,20 @@ sub DBSelect { # ([distinct], [first|all], [hash], $table, \@fields, \@specs, $l
 
 	my @fieldarray = @{ $fieldlist };
 	my $fields = join(", ", @fieldarray);
-	my $specs = join(" and ", @{ $speclist });
+	my $specs = (defined($speclist) ? join(" and ", @{ $speclist }) : "");
+	if (!defined($limits)) { $limits = ''; }
 
-	if ($specs ne "") { $specs = "where $specs"; }
+	if ($specs ne "") { $specs = "where $specs"; } else { $specs = ''; }
 	
-	my $sql = qq{select $distinct $fields from $dbname $specs $limits};
+	my $sql = "select $distinct $fields from $dbname $specs $limits";
 	if ($DEBUG_SQL) { warn $sql; }
 
 	my $sth = $dbh->prepare($sql);
 	$sth->execute();
 	if ($first) {
 		my @ret = $sth->fetchrow_array();
+		for my $v (@ret) { utf8::decode($v); } # set the UTF8 flag on the strings
+		$sth->finish();
 		if (!$hash) { return @ret; }
 
 		my %ret2;
@@ -101,11 +132,17 @@ sub DBSelect { # ([distinct], [first|all], [hash], $table, \@fields, \@specs, $l
 		}
 		return %ret2;
 	} else {
-		my $ret = $sth->fetchall_arrayref();
-		if (!$hash) { return $ret; }
-		
-		my @ret2;
-		foreach my $r (@{ $ret }) {
+		my @ret = @{ $sth->fetchall_arrayref() };
+ 		$sth->finish();
+ 		
+ 		for my $r (@ret) {
+	 		for my $v (@$r) { utf8::decode($v); } # set the UTF8 flag on the strings
+ 		}
+ 		
+		if (!$hash) { return @ret; }
+ 		 		
+ 		my @ret2;
+		foreach my $r (@ret) {
 			my @ra = @{ $r };
 			my %rr;
 			for (my $i = 0; $i < scalar(@fieldarray); $i++) {
@@ -113,17 +150,11 @@ sub DBSelect { # ([distinct], [first|all], [hash], $table, \@fields, \@specs, $l
 			}
 			push @ret2, { %rr };
 		}
-		return [@ret2];
+		return @ret2;
 	}
 }
 
-sub DBExecuteSelect {
-	my $sth = $dbh->prepare($_[0]);
-	$sth->execute();
-	return $sth->fetchall_arrayref();
-}
-
-sub DBDelete { # ($table, \@specs)
+sub Delete { # ($table, \@specs)
 	if (!defined($dbh)) { die "Database not open."; }
 	
 	my $dbname = shift;
@@ -133,43 +164,44 @@ sub DBDelete { # ($table, \@specs)
 	if ($speclist ne "all") {
 		$specs = join(" and ", @{ $speclist });
 		if ($specs ne "") { $specs = "where $specs"; }
-		else { die "No specs given to DBDelete"; }
+		else { die "No specs given to Delete"; }
 	}
 
 	my $sth = $dbh->prepare(qq{delete from $dbname $specs});
 	$sth->execute();
+	$sth->finish();
 }
 
-sub DBDeleteByID { # ($table, $id)
-	DBDelete($_[0], [DBSpecEQ('id', $_[1])]);
+sub DeleteByID { # ($table, $id)
+	Delete($_[0], [SpecEQ('id', $_[1])]);
 }
 	
-sub DBInsert { # (['LOW_PRIORITY', 'DELAYED', 'IGNORE'], $table, %values) => inserted id
+sub Insert { # (['LOW_PRIORITY', 'DELAYED', 'IGNORE'], $table, %values) => inserted id
 	my @opts;
 	while ($_[0] eq 'LOW PRIORITY' || $_[0] eq 'DELAYED' || $_[0] eq 'IGNORE') {
 		push @opts, $_[0]; shift;
 	}
 	my $table = shift;
-	return DBInsertUpdate(insert, $table, \@opts, [], @_);
+	return InsertUpdate('insert', $table, \@opts, [], @_);
 }
 
-sub DBUpdate { # (['LOW PRIORITY', 'IGNORE'], $table, \@specs, %values)
+sub Update { # (['LOW PRIORITY', 'IGNORE'], $table, \@specs, %values)
 	my @opts;
 	while ($_[0] eq 'LOW_PRIORITY' || $_[0] eq 'IGNORE') {
 		push @opts, $_[0]; shift;
 	}
 	my $table = shift;
 	my $specs = shift;
-	DBInsertUpdate(update, $table, \@opts, $specs, @_);
+	InsertUpdate('update', $table, \@opts, $specs, @_);
 }
 
-sub DBUpdateByID { # ($table, $id, %values)
+sub UpdateByID { # ($table, $id, %values)
 	my $table = shift;
 	my $id = shift;
-	return DBUpdate($table, [DBSpecEQ(id, $id)], @_);
+	return Update($table, [SpecEQ('id', $id)], @_);
 }
 
-sub DBInsertUpdate { # (insert/update, $table, \@opts, \@specs, %values) => inserted id
+sub InsertUpdate { # (insert/update, $table, \@opts, \@specs, %values) => inserted id
 	if (!defined($dbh)) { die "Database not open."; }
 	
 	my $command = shift;
@@ -181,12 +213,9 @@ sub DBInsertUpdate { # (insert/update, $table, \@opts, \@specs, %values) => inse
 	my @valuelist;
 	my $valuestr;
 	foreach my $k (keys(%values)) {
-		if ($k eq "SQL_NO_ESCAPE") { next; }
 		if (defined($values{$k})) {
 			my $v = $values{$k};
-			if (!$values{SQL_NO_ESCAPE}) {
-				$v = DBEscape($v);
-			}
+			$v = Escape($v);
 			push @valuelist, "$k = '$v'";
 		} else {
 			push @valuelist, "$k = NULL";
@@ -203,57 +232,51 @@ sub DBInsertUpdate { # (insert/update, $table, \@opts, \@specs, %values) => inse
 	if ($DEBUG_SQL) { warn $cmd; }
 
 	my $sth = $dbh->prepare($cmd);
-	my $n = $sth->execute() or die "Row insertion had error.";
+	my $n = $sth->execute() or die "Row insertion had error: " . $DBI::errstr;
+	$sth->finish();
 
 	if ($command eq "update") { return $n; }
 	if ($n == 0) { return -1; }
 	return $dbh->{'mysql_insertid'};	
 }
 
-sub DBExecute {
-	my $cmd = shift;
-	my $sth = $dbh->prepare($cmd);
-	my $n = $sth->execute() or die "Statement had error.";
-	return $n;
-	#return $dbh->{'mysql_insertid'};	
-}
-
-sub DBEscape {
+sub Escape {
 	my $v = shift;
 	$v =~ s/\\/\\\\/g;
 	$v =~ s/'/\\'/g;
 	return $v;
 }
 
-sub DBSpecEQ { return DBSpec($_[0], '=', $_[1]); }
-sub DBSpecNE { return DBSpecNot(DBSpecEQ(@_)); }
-sub DBSpecLE { return DBSpec($_[0], '<=', $_[1]); }
-sub DBSpecGE { return DBSpec($_[0], '>=', $_[1]); }
-sub DBSpecLT { return DBSpec($_[0], '<', $_[1]); }
-sub DBSpecGT { return DBSpec($_[0], '>', $_[1]); }
-sub DBSpecContains { return DBSpec($_[0], 'like', '%' . DBEscape($_[1]) . '%', 1); }
-sub DBSpecStartsWith { return DBSpec($_[0], 'like', DBEscape($_[1]) . '%', 1); }
-sub DBSpecEndsWith { return DBSpec($_[0], 'like', '%' . DBEscape($_[1]), 1); }
+sub SpecEQ { return Spec($_[0], '=', $_[1]); }
+sub SpecNE { return SpecNot(SpecEQ(@_)); }
+sub SpecLE { return Spec($_[0], '<=', $_[1]); }
+sub SpecGE { return Spec($_[0], '>=', $_[1]); }
+sub SpecLT { return Spec($_[0], '<', $_[1]); }
+sub SpecGT { return Spec($_[0], '>', $_[1]); }
+sub SpecContains { return Spec($_[0], 'like', '%' . Escape($_[1]) . '%', 1); }
+sub SpecStartsWith { return Spec($_[0], 'like', Escape($_[1]) . '%', 1); }
+sub SpecEndsWith { return Spec($_[0], 'like', '%' . Escape($_[1]), 1); }
 
-sub DBSpec {
+sub Spec {
 	my $field = shift; my $cmp = shift; my $value = shift;
 	my $noescape = shift;
-	if (!$noescape) { $value = DBEscape($value); }
+	if (!$value) { $value = ''; }
+	if (!$noescape) { $value = Escape($value); }
 	return "$field $cmp '$value'";
 }
-sub DBSpecNot {
+sub SpecNot {
 	my $spec = shift;
 	return "not($spec)";
 }
-sub DBSpecOrNull {
+sub SpecOrNull {
 	my $field = shift; my $cmp = shift; my $value = shift;
-	return "(" . DBSpec($field, $cmp, $value) . " or $field = NULL)";
+	return "(" . Spec($field, $cmp, $value) . " or $field IS NULL)";
 }
-sub DBSpecIn {
+sub SpecIn {
 	my $field = shift;
 	my @values = @_;
-	if (scalar(@values) == 0) { die "Cannot pass empty array to DBSpecIn."; }
-	foreach my $v (@values) { $v = DBEscape($v); }
+	if (scalar(@values) == 0) { die "Cannot pass empty array to SpecIn."; }
+	foreach my $v (@values) { $v = Escape($v); }
 	my $j = join(", ", @values);
 	return "($field IN ($j))";
 }
@@ -274,4 +297,18 @@ sub GetDBTimestamp {
     if ($_[0] eq "00000000000000") { return undef; }
     $_[0] =~ /(\d\d\d\d)(\d\d)(\d\d)(\d\d)(\d\d)(\d\d)/;
     return timelocal($6,$5,$4,$3,$2-1,$1);
+}
+
+sub SpecFromHash {
+	my @ret;
+	while (scalar(@_)) {
+		my $k = shift;
+		my $v = shift;
+		if (defined($v)) {
+			push @ret, SpecEQ($k, $v);
+		} else {
+			push @ret, "($k IS NULL)";
+		}
+	}
+	return @ret;
 }
