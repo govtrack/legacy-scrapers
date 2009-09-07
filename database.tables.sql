@@ -2,7 +2,7 @@
 --
 -- Host: localhost    Database: govtrack
 -- ------------------------------------------------------
--- Server version	5.0.45
+-- Server version	5.0.75-0ubuntu10.2
 
 /*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
 /*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
@@ -20,6 +20,8 @@
 --
 
 DROP TABLE IF EXISTS `people`;
+SET @saved_cs_client     = @@character_set_client;
+SET character_set_client = utf8;
 CREATE TABLE `people` (
   `id` int(10) unsigned NOT NULL auto_increment,
   `firstname` tinytext character set utf8 NOT NULL,
@@ -45,13 +47,16 @@ CREATE TABLE `people` (
   KEY `middlename` (`middlename`(15)),
   KEY `lastnameenc` (`lastnameenc`(15)),
   KEY `lastnamealt` (`lastnamealt`(15))
-) ENGINE=MyISAM AUTO_INCREMENT=412333 DEFAULT CHARSET=utf8 COLLATE=utf8_bin;
+) ENGINE=MyISAM AUTO_INCREMENT=412380 DEFAULT CHARSET=utf8 COLLATE=utf8_bin;
+SET character_set_client = @saved_cs_client;
 
 --
 -- Table structure for table `people_roles`
 --
 
 DROP TABLE IF EXISTS `people_roles`;
+SET @saved_cs_client     = @@character_set_client;
+SET character_set_client = utf8;
 CREATE TABLE `people_roles` (
   `personroleid` int(11) NOT NULL auto_increment,
   `personid` int(11) NOT NULL default '0',
@@ -67,13 +72,16 @@ CREATE TABLE `people_roles` (
   PRIMARY KEY  (`personroleid`),
   KEY `personid` (`personid`),
   KEY `state` (`state`,`enddate`)
-) ENGINE=MyISAM AUTO_INCREMENT=42409 DEFAULT CHARSET=latin1;
+) ENGINE=MyISAM AUTO_INCREMENT=42499 DEFAULT CHARSET=latin1;
+SET character_set_client = @saved_cs_client;
 
 --
 -- Table structure for table `people_votes`
 --
 
 DROP TABLE IF EXISTS `people_votes`;
+SET @saved_cs_client     = @@character_set_client;
+SET character_set_client = utf8;
 CREATE TABLE `people_votes` (
   `personid` int(11) NOT NULL,
   `voteid` varchar(10) collate utf8_unicode_ci NOT NULL,
@@ -84,12 +92,15 @@ CREATE TABLE `people_votes` (
   KEY `SECONDARY` (`voteid`,`personid`),
   KEY `bydate` (`personid`,`date`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+SET character_set_client = @saved_cs_client;
 
 --
 -- Table structure for table `people_committees`
 --
 
 DROP TABLE IF EXISTS `people_committees`;
+SET @saved_cs_client     = @@character_set_client;
+SET character_set_client = utf8;
 CREATE TABLE `people_committees` (
   `people_committee_id` int(11) NOT NULL auto_increment,
   `personid` int(11) NOT NULL default '0',
@@ -102,13 +113,16 @@ CREATE TABLE `people_committees` (
   `senatecode` text collate utf8_unicode_ci NOT NULL,
   PRIMARY KEY  (`people_committee_id`),
   KEY `personid` (`personid`)
-) ENGINE=MyISAM AUTO_INCREMENT=122144 DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+) ENGINE=MyISAM AUTO_INCREMENT=146535 DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+SET character_set_client = @saved_cs_client;
 
 --
 -- Table structure for table `committees`
 --
 
 DROP TABLE IF EXISTS `committees`;
+SET @saved_cs_client     = @@character_set_client;
+SET character_set_client = utf8;
 CREATE TABLE `committees` (
   `id` varchar(10) collate utf8_unicode_ci NOT NULL default '',
   `type` varchar(10) collate utf8_unicode_ci NOT NULL default '',
@@ -119,6 +133,7 @@ CREATE TABLE `committees` (
   PRIMARY KEY  (`id`),
   UNIQUE KEY `thomasname` (`thomasname`(100),`parent`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+SET character_set_client = @saved_cs_client;
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
 
 /*!40101 SET SQL_MODE=@OLD_SQL_MODE */;
@@ -129,4 +144,4 @@ CREATE TABLE `committees` (
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2009-05-24 20:15:53
+-- Dump completed on 2009-09-07 11:52:31

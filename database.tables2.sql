@@ -2,7 +2,7 @@
 --
 -- Host: localhost    Database: govtrack
 -- ------------------------------------------------------
--- Server version	5.0.45
+-- Server version	5.0.75-0ubuntu10.2
 
 /*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
 /*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
@@ -20,6 +20,8 @@
 --
 
 DROP TABLE IF EXISTS `billevents`;
+SET @saved_cs_client     = @@character_set_client;
+SET character_set_client = utf8;
 CREATE TABLE `billevents` (
   `session` int(11) NOT NULL default '0',
   `type` varchar(2) collate utf8_unicode_ci NOT NULL default '',
@@ -29,12 +31,15 @@ CREATE TABLE `billevents` (
   KEY `bill` (`session`,`type`,`number`),
   KEY `index` (`date`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+SET character_set_client = @saved_cs_client;
 
 --
 -- Table structure for table `billindex`
 --
 
 DROP TABLE IF EXISTS `billindex`;
+SET @saved_cs_client     = @@character_set_client;
+SET character_set_client = utf8;
 CREATE TABLE `billindex` (
   `session` int(11) NOT NULL default '0',
   `type` varchar(2) collate utf8_unicode_ci NOT NULL default '',
@@ -45,12 +50,15 @@ CREATE TABLE `billindex` (
   KEY `index` (`idx`,`value`(127),`session`),
   KEY `session_2` (`session`,`idx`,`value`(32))
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+SET character_set_client = @saved_cs_client;
 
 --
 -- Table structure for table `billlinks`
 --
 
 DROP TABLE IF EXISTS `billlinks`;
+SET @saved_cs_client     = @@character_set_client;
+SET character_set_client = utf8;
 CREATE TABLE `billlinks` (
   `session` int(11) NOT NULL default '0',
   `type` varchar(2) collate utf8_unicode_ci NOT NULL default '',
@@ -60,12 +68,15 @@ CREATE TABLE `billlinks` (
   `excerpt` text collate utf8_unicode_ci NOT NULL,
   PRIMARY KEY  (`session`,`type`,`number`,`source`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+SET character_set_client = @saved_cs_client;
 
 --
 -- Table structure for table `billlinks2`
 --
 
 DROP TABLE IF EXISTS `billlinks2`;
+SET @saved_cs_client     = @@character_set_client;
+SET character_set_client = utf8;
 CREATE TABLE `billlinks2` (
   `session` int(11) NOT NULL default '0',
   `type` varchar(2) collate utf8_unicode_ci NOT NULL default '',
@@ -75,12 +86,15 @@ CREATE TABLE `billlinks2` (
   `added` timestamp NOT NULL default CURRENT_TIMESTAMP on update CURRENT_TIMESTAMP,
   KEY `session` (`session`,`type`,`number`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+SET character_set_client = @saved_cs_client;
 
 --
 -- Table structure for table `billstatus`
 --
 
 DROP TABLE IF EXISTS `billstatus`;
+SET @saved_cs_client     = @@character_set_client;
+SET character_set_client = utf8;
 CREATE TABLE `billstatus` (
   `session` int(11) NOT NULL default '0',
   `type` varchar(2) collate utf8_unicode_ci NOT NULL default '',
@@ -93,12 +107,15 @@ CREATE TABLE `billstatus` (
   KEY `fulltitle` (`fulltitle`(100)),
   KEY `statusdate` (`statusdate`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+SET character_set_client = @saved_cs_client;
 
 --
 -- Table structure for table `billtitles`
 --
 
 DROP TABLE IF EXISTS `billtitles`;
+SET @saved_cs_client     = @@character_set_client;
+SET character_set_client = utf8;
 CREATE TABLE `billtitles` (
   `session` int(11) NOT NULL default '0',
   `type` varchar(2) collate utf8_unicode_ci NOT NULL default '',
@@ -108,12 +125,15 @@ CREATE TABLE `billtitles` (
   KEY `title` (`title`(60)),
   KEY `bill` (`session`,`type`,`number`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+SET character_set_client = @saved_cs_client;
 
 --
 -- Table structure for table `votes`
 --
 
 DROP TABLE IF EXISTS `votes`;
+SET @saved_cs_client     = @@character_set_client;
+SET character_set_client = utf8;
 CREATE TABLE `votes` (
   `id` varchar(10) collate utf8_unicode_ci NOT NULL,
   `date` datetime NOT NULL,
@@ -128,23 +148,29 @@ CREATE TABLE `votes` (
   KEY `bill` (`billsession`,`billtype`,`billnumber`),
   KEY `date` (`date`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+SET character_set_client = @saved_cs_client;
 
 --
 -- Table structure for table `linksubmission`
 --
 
 DROP TABLE IF EXISTS `linksubmission`;
+SET @saved_cs_client     = @@character_set_client;
+SET character_set_client = utf8;
 CREATE TABLE `linksubmission` (
   `date` timestamp NOT NULL default CURRENT_TIMESTAMP on update CURRENT_TIMESTAMP,
   `bill` tinytext NOT NULL,
   `url` text NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8;
+SET character_set_client = @saved_cs_client;
 
 --
 -- Table structure for table `monitormatrix`
 --
 
 DROP TABLE IF EXISTS `monitormatrix`;
+SET @saved_cs_client     = @@character_set_client;
+SET character_set_client = utf8;
 CREATE TABLE `monitormatrix` (
   `monitor1` text NOT NULL,
   `monitor2` text NOT NULL,
@@ -153,12 +179,15 @@ CREATE TABLE `monitormatrix` (
   PRIMARY KEY  (`monitor1`(127),`monitor2`(127)),
   KEY `monitor1` (`monitor1`(11),`count`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8;
+SET character_set_client = @saved_cs_client;
 
 --
 -- Table structure for table `questions`
 --
 
 DROP TABLE IF EXISTS `questions`;
+SET @saved_cs_client     = @@character_set_client;
+SET character_set_client = utf8;
 CREATE TABLE `questions` (
   `id` int(11) NOT NULL auto_increment,
   `question` int(11) NOT NULL,
@@ -167,10 +196,12 @@ CREATE TABLE `questions` (
   `approvaldate` datetime NOT NULL,
   `text` text NOT NULL,
   `topic` text NOT NULL,
+  `moderator` varchar(12) NOT NULL,
   PRIMARY KEY  (`id`),
   KEY `question` (`question`),
   KEY `topic` (`topic`(16))
-) ENGINE=MyISAM AUTO_INCREMENT=15032 DEFAULT CHARSET=utf8;
+) ENGINE=MyISAM AUTO_INCREMENT=20454 DEFAULT CHARSET=utf8;
+SET character_set_client = @saved_cs_client;
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
 
 /*!40101 SET SQL_MODE=@OLD_SQL_MODE */;
@@ -181,4 +212,4 @@ CREATE TABLE `questions` (
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2009-05-24 20:15:53
+-- Dump completed on 2009-09-07 11:52:31
