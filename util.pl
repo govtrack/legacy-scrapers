@@ -1,13 +1,14 @@
 use Time::Local;
 use DateTime;
-use Unicode::MapUTF8 qw(to_utf8 from_utf8 utf8_supported_charset);
 use POSIX qw(strftime);
 use XML::LibXML;
 use LWP::UserAgent;
 use Digest::MD5 qw(md5 md5_hex md5_base64);
 use IO::Compress::Gzip qw(gzip $GzipError);
 use IO::Uncompress::Gunzip qw(gunzip $GunzipError);
-
+use Encode;
+use HTML::Encoding 'encoding_from_http_message';
+   
 $XMLPARSER = XML::LibXML->new();
 $XMLPARSER->expand_entities(0);
 
@@ -66,6 +67,7 @@ $BillTypePattern =~ s/ /\\s\?/g;
 $BillTypePattern =~ s/\./\\\./g;
 
 $BillPattern = "($BillTypePattern)\\s?(\\d+)";
+$BillAmendmentPattern = "($BillTypePattern|H\.Amdt\.|S\.Amdt\.)\\s?(\\d+)";
 
 # END OF BILL TYPE MAP
 
@@ -256,15 +258,8 @@ sub htmlify {
 	my $html = shift;
 	my $apos = shift;
 	
-	#$html =~ s/^\s+//g;
-	#$html =~ s/\s+$//g;
-	
-	$html =~ s/&\#(\d+);/chr($1)/ge;
-	
 	$html =~ s/&/&amp;/g;
 	
-	#$html =~ s/\t/\&nbsp;\&nbsp;\&nbsp;\&nbsp;\&nbsp;/g;
-	#$html =~ s/  / \&nbsp;/g;
 	$html =~ s/(\s)\s+/$1/g;
 	
 	$html =~ s/</&lt;/g;
@@ -276,12 +271,8 @@ sub htmlify {
 
 	$html =~ s/\`\`/\&quot;/g;
 	$html =~ s/\'\'/\&quot;/g;
-	#my $apos = chr(146);
-	#$html =~ s/$apos/'/g;
 
 	$html =~ s/[\001-\020]//g;
-	#$html =~ s/Ð//g;
-	#$html =~ s/Á/A/g;
 	
 	if ($html =~ s/([^A-Za-z0-9 \t:;.,'"\-_\S\/\(\)\!\#\%\&\*\+\\\[\]\^\`\~\|\{\}])//g) { warn "Bad character " . ord($1); }
 
@@ -299,18 +290,8 @@ sub ToUTF8 {
 	$str =~ s/[\001-\010]//g;
 	$str =~ s/\011/ /g;
 	$str =~ s/[\013-\037]//g;
-	#$str =~ s/Ð//g;
-	#$str =~ s/Á/A/g;
 	$str =~ s/(\`\`|\'\')/"/g;
-	#$str =~ s/\`\`/chr(147)/eg; # these don't get converted to UTF8 properly
-	#$str =~ s/\'\'/chr(148)/eg;
-	$str = to_utf8({ -string => $str, -charset => 'WinLatin1' });
 	return $str;
-}
-
-sub HasUTF8Chars {
-	my $str = shift;
-	return $str ne from_utf8({ -string => $str, -charset => 'ASCII' });
 }
 
 sub DateToString {
@@ -622,6 +603,11 @@ sub WriteStatus {
 }
 
 sub Download {
+	# The goal of this routine is to download an HTML page and decode it to
+	# UTF-8 (with the Perl UTF8 flag set). It will also cache the page on
+	# disk so we can load it from the disk later if the CACHED environment
+	# varialbe is set.
+
 	my $URL = shift;
 	my %opts = @_;
 	
@@ -648,7 +634,8 @@ sub Download {
 		my ($dev,$ino,$mode,$nlink,$uid,$gid,$rdev,$size,
 		        $atime,$mtime,$ctime,$blksize,$blocks)
 		                   = stat($fn);
-		return ($data, $mtime);
+		if (!$opts{binary}) { $data = decode("utf8", $data, 1); } # explicitly mark this string flagged as UTF8
+		return ($aata, $mtime);
 	}
 	
 	sleep(1);
@@ -663,14 +650,40 @@ sub Download {
 		return undef;
 	}
 
-	my $data = $response->content;
+	# Decode any Content-Encoding but don't do charset conversion to UTF8.
+	my $data = $response->decoded_content(charset => 'none');
 	
 	$HTTP_BYTES_FETCHED += length($data);
 	
+	# If this is HTML, then there may be entities that are
+	# using the numeric value of characters according to the
+	# encoding of the document. We must do the decoding after
+	# we translate the entities back to text.
+	if ($response->content_type eq "text/html" && !$opts{binary}) {
+		my $charset = encoding_from_http_message($response);
+		$data = decode($charset, $data, 1); # and decode to Perl flagged UTF8
+		
+		# If the charset is iso-8859-1, it's actually probably windows-1252.
+		# The HTML entity &#146; derives from Windoes-1252 but is invalid
+		# in ISO-8859-1. So we do an interesting conversion to fix up the
+		# number in the character references to be the UTF8 encoding.
+		if ($charset eq 'iso-8859-1') {
+			$data =~ s/\&\#(\d+)\;/'&#' . ord(decode('windows-1252', pack("C", $1))) . ';'/eg;
+		}
+		
+		# We have to leave the entities in place because if we decoded e.g. "<"
+		# from an entity all hell would break loose.
+	}
+
 	if (!$opts{nocache}) {
 		mkdir '../mirror';
-		gzip \$data => $fn;
+		my $data2 = $data;
+		if (!$opts{binary}) { $data2 = encode("utf8", $data); } # explicitly encode it as UTF8 before compression and storage to disk
+		gzip \$data2 => $fn;
 	}
 	
 	return ($data, time);
 }
+
+1;
+
