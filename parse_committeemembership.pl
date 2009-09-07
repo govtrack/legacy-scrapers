@@ -153,7 +153,7 @@ sub GetSenateCommittees {
 				$afterMain = 1;
 	
 				AddXmlNode($scxml, 'member', name => "$f $l", id => $pid, role => $p);
-			} elsif ($line =~ s/^\s+(<\/td>)?<td nowrap="nowrap">//) {
+			} elsif ($line =~ s/^\s+(<\/td>)?<td valign="top" nowrap="nowrap">//) {
 				foreach my $x (split(/<br>/, $line)) {
 					if ($x !~ /(.*?) \((\w\w)\)(, <position>(.*?)<\/position>)?/) { warn $x; next; }
 					my ($pname, $state, $position) = ($1, $2, $4);
@@ -293,7 +293,6 @@ sub GetHouseCommittees {
 					my $pname = $2;
 					my $position = $4;
 					
-					$pname = ToUTF8($pname);
 					$pname =~ s/  +/ /g;
 					
 					if ($rank++ == 1 && $ctype ne 'Joint') {

@@ -168,7 +168,7 @@ sub FetchSenateCommitteeSchedule_Old {
 
 			$topic =~ s/^\s+|\s+$//g;
 			$topic =~ s/\s{2,}/ /g;
-
+			
 			AddCommittee($date, $time, $committee, $subcommittee, $topic, "s", $xml);
 			$mode = 1;
 		}
@@ -214,6 +214,7 @@ sub FetchSenateCommitteeSchedule {
 		
 		$topic =~ s/^\s+|\s+$//g;
 		$topic =~ s/\s{2,}/ /g;
+		$topic =~ s/\&quot;/"/g;
 
 		AddCommittee($date, $time, $committee, $subcommittee, $topic, "s", $xml, join("|", @topics));
 	}

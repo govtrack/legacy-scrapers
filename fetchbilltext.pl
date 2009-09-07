@@ -148,6 +148,7 @@ sub GetBillFullText {
 	FetchBillXml($session, $textdir) if ($session >= 108);
 
 	# Textify bills
+	if (-e "/usr/bin/pdftotext") {
 	foreach my $type (keys(%BillTypePrefix)) {
 	opendir BILLS, "$textdir/$type";
 	foreach my $bill (readdir(BILLS)) {
@@ -156,7 +157,7 @@ sub GetBillFullText {
 		if (-e "$textdir/$type/$type$number$status.txt") { next; }
 		print "Textifying $bill\n" if (!$OUTPUT_ERRORS_ONLY);
 		system("pdftotext -layout -nopgbrk -enc UTF-8 $textdir/$type/$bill");
-		if (-e "/usr/bin/pdftotext" && !-e "$textdir/$type/$type$number$status.txt") {
+		if (!-e "$textdir/$type/$type$number$status.txt") {
 			# PDF-to-text failed.  It should have printed something.
 			unlink "$textdir/$type/$bill"; # fetch again next time
 
@@ -169,6 +170,9 @@ sub GetBillFullText {
 		}
 	}
 	closedir BILLS;
+	}
+	} else {
+		warn "pdftotext is not installed";
 	}
 
 	# Symlink the latest version to the unstatused files.
@@ -393,7 +397,7 @@ sub FetchBillTextHTML2 {
 	# chop off everything before the status line
 	# sometimes IH appears here as RIH
 	# sometimes the wrong status code shows up (EH instead of ENR)
-	if ($htmlpage !~ s/^[\w\W]*?<p>\s*([HRESCONJ\.]+ *$number R?($status|[A-Z]{2,3})(\dS)?[\n\r])/$1/i
+	if ($htmlpage !~ s/^[\w\W]*?<p>(<em>.<\/em>)?\s*([HRESCONJ\.]+ *$number R?($status|[A-Z]{2,3})(\dS)?[\n\r])/$2/i
 		&& $htmlpage !~ s/^[\w\W]*?\n\s*([HRESCONJ\.]+ *$number R?($status|[A-Z]{2,3})(\dS)?<p>[\n\r])/$1/i
 		&& ($status ne 'enr' || $htmlpage !~ s/^[\w\W]*?<p>\s*([HRESCONJ\.]+ ?$number[\n\r])/$1/i)
 		&& $htmlpage !~ s/^[\w\W]*?<p>(<h3><b>Suspend the Rules and Pass the Bill)/$1/i
