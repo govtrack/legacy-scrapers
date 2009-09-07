@@ -1,5 +1,7 @@
 use Time::Local;
 use LWP::UserAgent;
+use Digest::MD5 qw(md5 md5_hex md5_base64);
+use HTML::Entities;
 
 require "general.pl";
 require "persondb.pl";
@@ -11,6 +13,7 @@ if ($ARGV[0] eq "PARSE_STATUS_STDIN") { &Main2; }
 if ($ARGV[0] eq "REFRESH") { GovDBOpen(); RefreshBills($ARGV[1], $ARGV[2], $ARGV[3]); DBClose(); }
 if ($ARGV[0] eq "ALLSESSION") { &AllSession; }
 if ($ARGV[0] eq "ALLAMENDMENTS") { &AllAmendments; }
+if ($ARGV[0] eq "UPDATE") { GovDBOpen(); UpdateBills($ARGV[1]); DBClose(); }
 
 1;
 
@@ -29,10 +32,111 @@ sub Main2 {
 	&DBClose;
 }
 
+sub UpdateBills {
+	my $SESSION = shift;
+	
+	my $changefile = "../data/us/$SESSION/bills.bsshash";
+	my %changehash;
+	open CHANGES, "<$changefile";
+	while (!eof(CHANGES)) {
+		my $line = <CHANGES>; chop $line;
+		my @fields = split(/ /, $line);
+		$changehash{$fields[0]} = $fields[1];
+	}
+	close CHANGES;
+	
+	for my $tbt ('HC', 'HE', 'HJ', 'HR', 'HZ', 'SC', 'SE', 'SJ', 'SN', 'SP') {
+		my $lastseq;
+		
+		my $offset = 0;
+		
+		while (defined($offset)) {
+			my $url = "http://thomas.loc.gov/cgi-bin/bdquery/d?d$SESSION:$offset:./list/bss/d$SESSION$tbt.lst:\[\[o\]\]";
+			undef $offset;
+			
+			my ($content, $mtime) = Download($url);
+			if (!$content) { warn; return; }
+			
+			my ($seq, $bt, $bn, $rec);
+		
+			my @lines = split(/[\n\r]/, $content);
+			for my $line (@lines) {
+				if ($line =~ /<hr>/) {
+					if (defined($rec)) {
+						UpdateBills2($SESSION, $bt, $bn, $rec, \%changehash);
+					}
+	
+					undef $bt;
+					undef $bn;
+					undef $rec;
+				}
+				
+				if ($line =~ m|<B>\s*(\d+)\.</B> <a href="/cgi-bin/bdquery/D\?d$SESSION:\d+:./list/bss/d$SESSION$tbt.lst::">\s*$BillAmendmentPattern\s*</A>|i) {
+					if (defined($rec)) {
+						UpdateBills2($SESSION, $bt, $bn, $rec, \%changehash);
+					}
+					
+					($seq, $bt, $bn) = ($1, $2, $3);
+					undef $rec;
+					
+					if (defined($lastseq) && $lastseq != $seq-1) { warn "Skipped a sequence number $lastseq to $seq."; }
+					$lastseq = $seq;
+					
+					if ($tbt eq 'HZ' || $tbt eq 'SP') {
+						$bt = $tbt;
+					} else {
+						$bt = $BillTypeMap{lc($bt)};
+					}
+					
+				} elsif (defined($bt)) {
+					$rec .= $line;
+				}
+				
+				if ($line =~ m|<a href="/cgi-bin/bdquery/d\?d$SESSION:(\d+)[^"]*">NEXT PAGE</a>|i) {
+					$offset = $1;
+				}
+			}
+		}
+		
+		if (!defined($lastseq)) {
+			warn "No $tbt bills."
+		}
+	}
+
+	if (defined($rec)) {
+		UpdateBills2($SESSION, $bt, $bn, $rec, \%changehash);
+	}
+				
+	open CHANGES, ">$changefile";
+	for my $key (sort(keys(%changehash))) {
+		print CHANGES "$key $changehash{$key}\n";
+	}
+	close CHANGES;
+}
+
+sub UpdateBills2 {
+	my ($bs, $bt, $bn, $rec, $changehash) = @_;
+
+	$rec = md5_base64($rec);
+	if ($$changehash{"$bt$bn"} eq $rec) { return; }
+	$$changehash{"$bt$bn"} = $rec;
+	
+	print "Detected Update to $bt$bs-$bn.\n";
+	
+	if ($bt eq 'HZ') {
+		ParseAmendment($bs, 'h', 'Z', $bn);
+	} elsif ($bt eq 'SP') {
+		ParseAmendment($bs, 's', 'P', $bn);
+	} else {
+		GovGetBill($bs, $bt, $bn);
+	}
+}
+
 sub RefreshBills {
 	my ($session, $xpath, $pattern, $dontwarnifunchanged) = @_;
 	
 	my @bills = GetBillList($session);
+	my @rlist;
 	foreach $bill_ (@bills) {
 		my $bill;
 		eval { $bill = GetBill(@{ $bill_ }); };
@@ -52,12 +156,18 @@ sub RefreshBills {
 		}
 		
 		if ($xpath ne '' && RefreshTest($bill, $xpath, $pattern)) {
-			GovGetBill( $$bill_[0], $$bill_[1], $$bill_[2] );
-			if (!$dontwarnifunchanged) {
-				$bill = GetBill(@{ $bill_ });
-				if (RefreshTest($bill, $xpath, $pattern)) {
-					print "$$bill_[0]$$bill_[1]$$bill_[2]: XPath expression still matches.\n";
-				}
+			push @rlist, $bill_;
+		}
+	}
+	
+	print "Found " . scalar(@rlist ) . " bills to refresh.\n";
+	
+	for my $bill_ (@rlist) {
+		GovGetBill( $$bill_[0], $$bill_[1], $$bill_[2] );
+		if (!$dontwarnifunchanged) {
+			$bill = GetBill(@{ $bill_ });
+			if (RefreshTest($bill, $xpath, $pattern)) {
+				print "$$bill_[0]$$bill_[1]$$bill_[2]: XPath expression still matches.\n";
 			}
 		}
 	}
@@ -103,11 +213,6 @@ sub RefreshTest {
 	} elsif ($pattern eq "EXISTS") {
 		my @value = $bill->findnodes($xpath);
 		return scalar(@value) > 0;
-	} elsif ($pattern eq "ENCODING") {
-		foreach my $node ($bill->findnodes($xpath)) {
-			if (HasUTF8Chars($node->textContent)) { return 1; }
-		}
-		return 0;
 	} elsif ($pattern eq "CHECKPERSONID") {
 		foreach my $node ($bill->findnodes($xpath)) {
 			my $id = $node->textContent;
@@ -185,7 +290,15 @@ sub GovGetBill {
 
 	my $xfn = "../data/us/$SESSION/bills/$BILLTYPE$BILLNUMBER.xml";
 	if ($SKIPIFEXISTS && -e $xfn) { return; }
-	if ($ENV{SKIP_RECENT} && -M $xfn < 4) { return; }
+	#if ($ENV{SKIP_RECENT} && -M $xfn < 4) { return; }
+	if ($ENV{SKIP_RECENT}) {
+		open F, $xfn;
+		my $line = <F>;
+		close F;
+		if ($line =~ /updated="2009-07-12T/) {
+			return;
+		}
+	}
 
 	print "Fetching $SESSION:$BILLTYPE$BILLNUMBER\n" if (!$OUTPUT_ERRORS_ONLY);
 
@@ -717,15 +830,13 @@ sub GovGetBill {
 	$SUMMARY =~ s/<p>/\n/ig;
 	$SUMMARY =~ s/<[^>]+?>//g;
 	$SUMMARY =~ s/\&nbsp;/ /g;
-	$SUMMARY =~ s/\&quot;/"/g;
-	$SUMMARY =~ s/\&apos;/'/g;
-	$SUMMARY =~ s/&\#(\d+);/chr($1)/ge;
 	my $SUMMARY2 = HTMLify($SUMMARY);
 
 	mkdir "../data/us/$SESSION/bills";
 	mkdir "../data/us/$SESSION/bills.summary";
 
 	open XML, ">$xfn";
+	binmode(XML, ":utf8");
 	print XML <<EOF;
 <bill session="$SESSION" type="$BILLTYPE" number="$BILLNUMBER" updated="$updated">
 	<status>$STATUSNOW</status>
@@ -761,7 +872,8 @@ EOF
 	close XML;
 
 	open SUMMARY, ">", "../data/us/$SESSION/bills.summary/$BILLTYPE$BILLNUMBER.summary.xml";
-	print SUMMARY FormatBillSummary($SUMMARY);
+	binmode(SUMMARY, ":utf8");
+	print SUMMARY FormatBillSummary($SUMMARY2);
 	close SUMMARY;
 	
 	IndexBill($SESSION, $BILLTYPE, $BILLNUMBER);
@@ -772,8 +884,6 @@ sub ParseAmendment {
 	my $chamber = shift;
 	my $char = shift;
 	my $number = shift;
-	my $billtype = shift;
-	my $billnumber = shift;	
 	
 	if ($ENV{SKIP_AMENDMENTS}) { return; }
 
@@ -790,6 +900,8 @@ sub ParseAmendment {
 
 	$content =~ s/\r//g;
 	
+	my $billtype;
+	my $billnumber;	
 	my $sequence = '';
 	my $sponsor;
 	my $offered;
@@ -804,7 +916,10 @@ sub ParseAmendment {
 	foreach my $line (split(/\n/, $content)) {
 		$line =~ s/<\/?font[^>]*>//g;
 	
-		if ($line =~ /^ \(A(\d\d\d)\)/) {
+		if ($line =~ /<br>Amends: [^>]*>\s*$BillPattern/i) {
+			$billtype = $BillTypeMap{lc($1)};
+			$billnumber = $2;
+		} elsif ($line =~ /^ \(A(\d\d\d)\)/) {
 			$sequence = int($1);
 		} elsif ($line =~ /<br>Sponsor: <a [^>]*>(Rep|Sen) ([^<]*)<\/a> \[(\w\w(-\d+)?)\]/) {
 			($sptitle, $spname, $spstate) = ($1, $2, $3);
@@ -882,7 +997,7 @@ sub ParseAmendment {
 	
 	if (!defined($purpose)) { $purpose = "Amendment information not available."; $description = $purpose; }
 	
-	if ((!defined($sponsor) && !defined($spcommittee)) || !defined($offered)) {
+	if (!defined($billtype) || (!defined($sponsor) && !defined($spcommittee)) || !defined($offered)) {
 		print "Parse failed on amendment: $URL\n";
 		return;
 	}
@@ -923,16 +1038,12 @@ sub HTMLify {
 
 	$t =~ s/&nbsp;/ /gi;
 
-	return ToUTF8(htmlify($t));
+	return htmlify(decode_entities($t));
 }
 
 sub FormatBillSummary {
 	my $summary = shift;
 
-	$summary =~ s/\&/\&amp;/g;
-	$summary =~ s/</\&lt;/g;
-	$summary =~ s/>/\&gt;/g;		
-	
 	my @splits = split(/(Division|Title|Subtitle|Part|Chapter)\s+(\w+)\s*: (.*?) - |\((Sec)\. (\d+)\)|(\n)/, $summary);
 	
 	my %secorder = (Division => 1, Title => 2, Subtitle => 3, Part 
