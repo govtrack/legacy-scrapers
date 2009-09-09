@@ -185,7 +185,7 @@ sub PersonDBGetID {
 	my $lastname2;
 	$lastname =~ tr/ /-/;
 	($lastname2 = $lastname) =~ tr/\-/ /;
-	$matches1 = DBSelectAll(hash, people, [id, firstname, middlename, nickname, namemod, lastname],
+	@matches1 = DBSelectAll(hash, people, [id, firstname, middlename, nickname, namemod, lastname],
 		[DBSpecEQ(lastname,$lastname)
 		. " or " . DBSpecEQ(lastname,$lastname2)
 		. " or " . DBSpecEQ(lastnamealt,$lastname)
@@ -198,7 +198,7 @@ sub PersonDBGetID {
 		. " or " . (scalar(@fnames) < 2 ? 0 : DBSpecEQ(lastname, $fnames[scalar(@fnames)-1] . '-' . $lastname))
 		#. " or " . DBSpecEndsWith(lastname,'-' . $lastname)
 		]);
-	foreach my $match (@{$matches1}) {
+	foreach my $match (@matches1) {
 		my @rolespec = ();
 		if (defined($when1)) { push @rolespec, PERSON_ROLE_THEN($when1, $when2); }
 		if (defined($title)) { push @rolespec, DBSpecEQ('type', lc($title)); }
