@@ -725,7 +725,6 @@ sub MakeVoteMap {
 	
 	if ($session < 109) { return; }
 
-	GD::Image->useFontConfig(1);
 	my $ttFontName = 'Arial';
 	my $ttFontOpts = { resolution => '150,150' };
 
@@ -805,7 +804,8 @@ sub MakeVoteMap {
 	
 	# GEOGRAPHIC MAP
 	
-	eval("LoadDistricts$session");
+	eval("LoadDistricts${session}()");
+	if ($@) { die $@; }
 
 	for my $size ('large', 'small') {
 	for my $imgmode ('geo', 'carto') {
@@ -814,6 +814,7 @@ sub MakeVoteMap {
 	my $white = $im->colorAllocate(255,255,255);
 	my $black = $im->colorAllocate(0,0,0);
 	my $grey = $im->colorAllocate(150,150,150);
+	$im->useFontConfig(1);
 	$im->filledRectangle(0, 0, $im->width, $im->height, $white);
 
 	my %votecolor = (
@@ -870,6 +871,7 @@ sub MakeVoteMap {
 		if (!defined($DistrictPolys{"$size$imgmode$state$dist$sennum"})) { # cache the polygons when batch-drawing maps
 			my @gdpolys;
 			my $polys = LoadPolys($imgmode, $reptype, $session, $state, $dist);
+			if (scalar(@$polys) == 0) { warn "No polygons for $state $dist"; }
 			foreach my $poly (@$polys) {
 			foreach my $poly2 (@{ SplitPoly(ReducePoly($poly, $imgmode), $sennum) }) {
 				push @gdpolys, CreateGDPoly($poly2, $im, $imgmode);
