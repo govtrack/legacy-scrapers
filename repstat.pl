@@ -185,6 +185,7 @@ sub GenStats {
 	foreach my $p (keys(%Person)) {
 		if (!-e "$outdir.person/$p.xml") { next; }
 		open P, ">>$outdir.person/$p.xml";
+		binmode(P, ":utf8");
 		print P "</statistics>\n";
 		close P;
 	}
@@ -322,6 +323,7 @@ sub ScanBills {
 				# at least one bill.
 				
 				my $asymmetry = log(($FriendTable{$period}{$pa}{$pb}+1) / ($FriendTable{$period}{$pb}{$pa}+1));
+				#print "$FriendTable{$period}{$pa}{$pb} $FriendTable{$period}{$pb}{$pa} $asymmetry\n" if ($pa == 412276);
 				
 				# Factor by the amount of data we have so we don't
 				# place much emphasis on bad data.
@@ -512,6 +514,7 @@ sub WriteStat {
 	# write out to disk
 	my $now = time;
 	open STAT, ">$outdir/$file.xml";
+	binmode(STAT, ":utf8");
 	print STAT "<?xml version=\"1.0\" ?>\n";
 	print STAT '<?xml-stylesheet href="stylesheet.xml" type="text/xsl" ?>' . "\n";
 	print STAT "<$file key='$sortkey' mean='$mean' stddev='$stddev' generated='$now'";
@@ -544,11 +547,13 @@ sub WriteStat {
 
 		if (!-e "$outdir.person/$id.xml") {
 			open P, ">$outdir.person/$id.xml";
+			binmode(P, ":utf8");
 			print P "<statistics session='$session' id='$id' generated='$now'>\n";
 			close P;
 		}
 
 		open P, ">>$outdir.person/$id.xml";
+		binmode(P, ":utf8");
 		print P "<$file ";
 		foreach my $key (@keys) {
 			print P "$key='$Person{$id}{$key}' ";
