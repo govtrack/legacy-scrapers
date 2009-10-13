@@ -257,6 +257,7 @@ sub Trunc {
 sub htmlify {
 	my $html = shift;
 	my $apos = shift;
+	my $nobr = shift;
 	
 	$html =~ s/&/&amp;/g;
 	
@@ -267,14 +268,14 @@ sub htmlify {
 	$html =~ s/"/&quot;/g;
 	$html =~ s/'/&apos;/g if ($apos);
 	
-	$html =~ s/\n/<br\/>/g;
+	$html =~ s/\n/<br\/>/g if (!$nobr);
 
 	$html =~ s/\`\`/\&quot;/g;
 	$html =~ s/\'\'/\&quot;/g;
 
-	$html =~ s/[\001-\020]//g;
+	$html =~ s/[\001-\011]|[\013-\020]//g;
 	
-	if ($html =~ s/([^A-Za-z0-9 \t:;.,'"\-_\S\/\(\)\!\#\%\&\*\+\\\[\]\^\`\~\|\{\}])//g) { warn "Bad character " . ord($1); }
+	if ($html =~ s/([^A-Za-z0-9 \t:;.,'"\-_\S\/\(\)\!\#\%\&\*\+\\\[\]\^\`\~\|\{\}\n])//g) { warn "Bad character " . ord($1); }
 
 	return $html;
 }
@@ -626,7 +627,9 @@ sub Download {
 	my $key = md5_base64($URL . $postopts);
 	$key =~ s#/#-#g;
 	if ($key !~ /^(.)(.)/) { die; }
-	my $fn = "../mirror/$1/$2/$key";
+	my $sd1 = $1;
+	my $sd2 = $2;
+	my $fn = "../mirror/$sd1/$sd2/$key";
 	
 	if ($ENV{CACHED} && -e $fn && !$opts{nocache}) {
 		my $data;
@@ -635,7 +638,7 @@ sub Download {
 		        $atime,$mtime,$ctime,$blksize,$blocks)
 		                   = stat($fn);
 		if (!$opts{binary}) { $data = decode("utf8", $data, 1); } # explicitly mark this string flagged as UTF8
-		return ($aata, $mtime);
+		return ($data, $mtime);
 	}
 	
 	sleep(1);
@@ -650,33 +653,39 @@ sub Download {
 		return undef;
 	}
 
-	# Decode any Content-Encoding but don't do charset conversion to UTF8.
-	my $data = $response->decoded_content(charset => 'none');
+	# Decode any Content-Encoding and character set.
+	my $data = $response->decoded_content(); #(charset => 'none');
 	
 	$HTTP_BYTES_FETCHED += length($data);
 	
-	# If this is HTML, then there may be entities that are
-	# using the numeric value of characters according to the
-	# encoding of the document. We must do the decoding after
-	# we translate the entities back to text.
+	# If this is HTML, then any numeric &#...;-style entities must use
+	# Unicode code points. If the encoding is ISO-8859-1, we find that
+	# often the encoding is *really* Windows 1252 where &#146; is a
+	# sensible code point but technically invalid character entity.
+	# So before going on, we correct these mistakes in the input so
+	# that we are sure to have the correct UTF-8 encoded HTML document.
+	# Unfortunately, we can't decode entities here because if we were
+	# to decode an < entity all hell would break loose.
 	if ($response->content_type eq "text/html" && !$opts{binary}) {
 		my $charset = encoding_from_http_message($response);
-		$data = decode($charset, $data, 1); # and decode to Perl flagged UTF8
 		
-		# If the charset is iso-8859-1, it's actually probably windows-1252.
-		# The HTML entity &#146; derives from Windoes-1252 but is invalid
-		# in ISO-8859-1. So we do an interesting conversion to fix up the
-		# number in the character references to be the UTF8 encoding.
 		if ($charset eq 'iso-8859-1') {
+			# Replace &#...; entities by:
+			#     converting it to binary data: Perl chr assumes Unicode so we use pack instead.
+			#     treating it as Windws 1252 and decoding it into Perl UTF8-flagged character data
+			#     using ord to convert that back to a Unicode code point
+			#     and wrapping it back in &#...;.
+			# This is totally over-engineered because I think there might just be
+			# a small handful of characters where this actually occurs and
+			# can't simply be treated as Unicode code points.
 			$data =~ s/\&\#(\d+)\;/'&#' . ord(decode('windows-1252', pack("C", $1))) . ';'/eg;
 		}
-		
-		# We have to leave the entities in place because if we decoded e.g. "<"
-		# from an entity all hell would break loose.
 	}
 
 	if (!$opts{nocache}) {
-		mkdir '../mirror';
+		mkdir "../mirror";
+		mkdir "../mirror/$sd1";
+		mkdir "../mirror/$sd1/$sd2";
 		my $data2 = $data;
 		if (!$opts{binary}) { $data2 = encode("utf8", $data); } # explicitly encode it as UTF8 before compression and storage to disk
 		gzip \$data2 => $fn;

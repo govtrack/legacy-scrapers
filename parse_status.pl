@@ -338,6 +338,7 @@ sub GovGetBill {
 	my $STATUS_ON_TABLE_MOTION;
 	my @CRS = ();
 	my @AMENDMENTS = ();
+	my $STATE = '';
 
 	my $lastcommittee = undef;
 	my $titles = undef;
@@ -392,6 +393,7 @@ sub GovGetBill {
 			}
 			
 			$STATUSNOW = "<introduced date=\"$INTRODUCED\" datetime=\"$INTRODUCED2\"/>";
+			$STATE = ['INTRODUCED', $INTRODUCED2, { sponsor => $SPONSOR_ID }];
 
 		# BACKUP TITLE
 		} elsif ($cline =~ /<B>Title:<\/B> ([\w\W]+)/i) {
@@ -425,6 +427,7 @@ sub GovGetBill {
 			if ($what =~ /(On passage|On motion to suspend the rules and pass the bill|On motion to suspend the rules and agree to the resolution|On motion to suspend the rules and pass the resolution|On agreeing to the resolution|On agreeing to the conference report|Two-thirds of the Members present having voted in the affirmative the bill is passed,?)(, the objections of the President to the contrary notwithstanding.?)?(, as amended)? (Passed|Failed|Agreed to|Rejected) (by voice vote|without objection|by (the Yeas and Nays|recorded vote)((:)? \(2\/3 required\))?: \d+ - \d+(, \d+ Present)? \(Roll no\. \d+\))/i) {
 				my $motion = $1;
 				my $isoverride = $2;
+				my $asamended = $3;
 				my $passfail = $4;
 				my $how = $5;
 				my $votetype;
@@ -483,6 +486,72 @@ sub GovGetBill {
 					$STATUS_ON_TABLE_MOTION = $STATUSNOW;
 					$STATUSNOW = $prevstatus;
 				}
+				
+				if ($votenode eq 'vote') {
+				if (!$isoverride) {
+					# House vote on a House bill.
+					if ($BILLTYPE =~ /^h/) {
+						if ($passfail eq 'pass') {
+							if ($BILLTYPE eq 'hr') {
+								$STATE = ['PASSED:SIMPLERES', $when];
+							} else {
+								$STATE = ['PASS_OVER:HOUSE', $when]; # passed by originating chamber, now in second chamber
+							}
+						} elsif ($motion =~ /On motion to suspend the rules/) {
+							# Funny thing: on a motion to suspend the rules and 
+							# pass, if the motion fails, the bill may still yet 
+							# continue to be debated, or debate may end, probably 
+							# with a "Motion to reconsider laid on the table Agreed 
+							# to without objection."
+							$STATE = ['PROVKILL:SUSPENSIONFAILED', $when]; # provisionally killed by failure to pass under suspension of the rules
+						} else {
+							# outright failure
+							$STATE = ['FAIL:ORIGINATING:HOUSE', $when];
+						}
+					
+					# House vote on a Senate bill
+					} else {
+						if ($passfail eq 'pass') {
+							# This ignores the need to go to conference!
+							if (($BILLTYPE eq 'hj' || $BILLTYPE eq 'sj') && $backup_title =~ /Proposing an amendment to the Constitution of the United States/) {
+								# joint resolution that looks like an amendment to the constitution
+								$STATE = ['PASSED:CONSTAMEND', $when];
+							} elsif ($BILLTYPE eq 'hc' || $BILLTYPE eq 'sc') {
+								# concurrent resolutions
+								$STATE = ['PASSED:CONCURRENTRES', $when];
+							} else {
+								# bills and joint resolutions not constitutional amendments
+								$STATE = ['PASSED', $when]; # passed by second chamber, now on to president
+							}
+						} elsif ($motion =~ /On motion to suspend the rules/) {
+							# See note above.
+							$STATE = ['PROVKILL:SUSPENSIONFAILED', $when]; # provisionally killed by failure to pass under suspension of the rules
+						} else {
+							# outright failure
+							$STATE = ['FAIL:SECOND:HOUSE', $when];
+						}
+					}
+				} else {
+					# House override on a House bill.
+					if ($BILLTYPE =~ /^h/) {
+						if ($passfail eq 'pass') {
+							$STATE = ['OVERRIDE_PASS_OVER:HOUSE', $when]; # override ok in originating chamber, now in second chamber
+						} else {
+							# override failure
+							$STATE = ['VETOED:OVERRIDE_FAIL_ORIGINATING:HOUSE', $when];
+						}
+					
+					# House override on a Senate bill
+					} else {
+						if ($passfail eq 'pass') {
+							$STATE = ['ENACTED:VETOOVERRIDE', $when];
+						} else {
+							# override failure
+							$STATE = ['VETOED_OVERRIDE_FAIL_SECOND:HOUSE', $when];
+						}
+					}
+				}
+				}
 
 			# senate vote
 			} elsif ($what =~ /(Passed Senate|Failed of passage in Senate|Resolution agreed to in Senate|Received in the Senate, considered, and agreed to|Submitted in the Senate, considered, and agreed to|Introduced in the Senate, read twice, considered, read the third time, and passed|Received in the Senate, read twice, considered, read the third time, and passed|Senate agreed to conference report|Cloture \S*\s?on the motion to proceed .*?not invoked in Senate|Cloture on the bill not invoked in Senate)(,?[\w\W]*,?) (without objection|by Unanimous Consent|by Voice Vote|by Yea-Nay( Vote)?\. \d+\s*-\s*\d+\. Record Vote (No|Number): \d+)/) {
@@ -527,9 +596,74 @@ sub GovGetBill {
 				
 				if ($roll != 0) { GetSenateVote($SESSION, SubSessionFromYear(YearFromDateTime($when)), YearFromDateTime($when), $roll, 1); }
 
+				if ($votenode eq 'vote') {
+				if ($votetype ne 'override') {
+					# Senate vote on a Senate bill.
+					if ($BILLTYPE =~ /^s/) {
+						if ($passfail eq 'pass') {
+							if ($BILLTYPE eq 'sr') {
+								$STATE = ['PASSED:SIMPLERES', $when];
+							} else {
+								$STATE = ['PASS_OVER:SENATE', $when]; # passed by originating chamber, now in second chamber
+							}
+						} elsif ($votetype eq 'cloture') {
+							# A failed cloture vote is a provisional kill.
+							$STATE = ['PROVKILL:CLOTUREFAILED', $when];
+						} else {
+							# outright failure
+							$STATE = ['FAIL:ORIGINATING:SENATE', $when];
+						}
+					
+					# Senate vote on a House bill
+					} else {
+						if ($passfail eq 'pass') {
+							# This ignores the need to go to conference!
+							if (($BILLTYPE eq 'hj' || $BILLTYPE eq 'sj') && $backup_title =~ /Proposing an amendment to the Constitution of the United States/) {
+								# joint resolution that looks like an amendment to the constitution
+								$STATE = ['PASSED:CONSTAMEND', $when];
+							} elsif ($BILLTYPE eq 'hc' || $BILLTYPE eq 'sc') {
+								# concurrent resolutions
+								$STATE = ['PASSED:CONCURRENTRES', $when];
+							} else {
+								# bills and joint resolutions not constitutional amendments
+								$STATE = ['PASSED', $when]; # passed by second chamber, now on to president
+							}
+						} elsif ($votetype eq 'cloture') {
+							# See note above.
+							$STATE = ['PROVKILL:CLOTUREFAILED', $when];
+						} else {
+							# outright failure
+							$STATE = ['FAIL:SECOND:SENATE', $when];
+						}
+					}
+				} else {
+					# Senate override on a Senate bill.
+					if ($BILLTYPE =~ /^s/) {
+						if ($passfail eq 'pass') {
+							$STATE = ['OVERRIDE_PASS_OVER:SENATE', $when]; # override ok in originating chamber, now in second chamber
+						} else {
+							# override failure
+							$STATE = ['VETOED:OVERRIDE_FAIL_ORIGINATING:SENATE', $when];
+						}
+					
+					# Senate override on a House bill
+					} else {
+						if ($passfail eq 'pass') {
+							$STATE = ['ENACTED:VETOOVERRIDE', $when];
+						} else {
+							# override failure
+							$STATE = ['VETOED:OVERRIDE_FAIL_SECOND:SENATE', $when];
+						}
+					}
+				}
+				}
+
 			} elsif ($what =~ /Placed on (the )?([\w ]+) Calendar( under ([\w ]+))?[,\.] Calendar No\. (\d+)\.|Committee Agreed to Seek Consideration Under Suspension of the Rules|Ordered to be Reported/i) {
 				if ($STATUSNOW =~ /^<introduced/) {
 					$STATUSNOW = "<calendar $statusdateattrs />";
+				}
+				if ($$STATE[0] eq 'INTRODUCED' || $$STATE[0] eq 'REFERRED') {
+					$STATE = ['REPORTED', $when];
 				}
 				push @ACTIONS, [$action_state, 2, "calendar", $what, { @axndateattrs, calendar => $2, under => $4, number => $5 }];
 			} elsif ($what =~ /Cleared for White House|Presented to President/) {
@@ -542,9 +676,11 @@ sub GovGetBill {
 				$STATUSNOW = "<veto $statusdateattrs />";
 				push @ACTIONS, [$action_state, 2, "vetoed", $what, { @axndateattrs }];
 				$wasvetoed = 1;
+				$STATE = ['PROVKILL:VETO', $when]; # could be overridden
 			} elsif ($what =~ /Became (Public|Private) Law No: ([\d\-]+)\./) {
 				$STATUSNOW = "<enacted $statusdateattrs />";
 				push @ACTIONS, [$action_state, 2, "enacted", $what, { @axndateattrs, type => lc($1), number => $2 }];
+				$STATE = ['ENACTED', $when, {type => lc($1), number => $2}];
 
 			} elsif ($what =~ /Passed House pursuant to/) {
 				my $votetype;
@@ -552,6 +688,20 @@ sub GovGetBill {
 				if ($BILLTYPE =~ /^h/) { $votetype = "vote"; } else { $votetype = "vote2"; }
 				$STATUSNOW = "<$votetype $statusdateattrs where=\"h\" result=\"pass\" how=\"$how\"/>";
 				push @ACTIONS, [$action_state, 2, "vote", $what, { @axndateattrs, where => 'h', type => $votetype, result => 'pass', how => $how } ];
+				if ($BILLTYPE eq 'hr') {
+					$STATE = ['PASSED:SIMPLERES', $when];
+				} elsif ($BILLTYPE =~ /^h/) {
+					$STATE = ['PASS_OVER:HOUSE', $when]; # passed by originating chamber, now in second chamber
+				} elsif ($BILLTYPE eq 'sj' && $backup_title =~ /Proposing an amendment to the Constitution of the United States/) {
+					# joint resolution that looks like an amendment to the constitution
+					$STATE = ['PASSED:CONSTAMEND', $when];
+				} elsif ($BILLTYPE eq 'sc') {
+					# concurrent resolutions
+					$STATE = ['PASSED:CONCURRENTRES', $when];
+				} else {
+					# bills and joint resolutions not constitutional amendments
+					$STATE = ['PASSED', $when]; # passed by second chamber, now on to president
+				}
 
 			} elsif ($what =~ /Motion to reconsider laid on the table Agreed to without objection/) {
 				# that's the end of that bill
@@ -559,7 +709,7 @@ sub GovGetBill {
 					$STATUSNOW = $STATUS_ON_TABLE_MOTION;
 					undef $STATUS_ON_TABLE_MOTION;
 				}
-
+				
 			} else {
 				if ($what =~ /^Referred to ((House|Senate) .*[^\.]).?/) {
 					$action_committee = $1;
@@ -570,6 +720,9 @@ sub GovGetBill {
 
 				push @ACTIONS, [$action_state, 1, $statusdateattrs, $what];
 
+				if ($$STATE[0] eq 'INTRODUCED') {
+					$STATE = ['REFERRED', $when];
+				}
 			}
 
 		# COSPONSORS
@@ -828,6 +981,9 @@ sub GovGetBill {
 	# reformat summary	
 	$SUMMARY =~ s/\(There (is|are) \d+ other summar(y|ies)\)//;
 	$SUMMARY =~ s/<p>/\n/ig;
+	$SUMMARY =~ s/<br\/?>/\n/ig;
+	$SUMMARY =~ s/<\/ul>/\n/ig;
+	$SUMMARY =~ s/<li>/\n-/ig;
 	$SUMMARY =~ s/<[^>]+?>//g;
 	$SUMMARY =~ s/\&nbsp;/ /g;
 	my $SUMMARY2 = HTMLify($SUMMARY);
@@ -839,6 +995,7 @@ sub GovGetBill {
 	binmode(XML, ":utf8");
 	print XML <<EOF;
 <bill session="$SESSION" type="$BILLTYPE" number="$BILLNUMBER" updated="$updated">
+	<state datetime="$$STATE[1]">$$STATE[0]</state>
 	<status>$STATUSNOW</status>
 
 	<introduced date="$INTRODUCED" datetime="$INTRODUCED2"/>
@@ -1038,13 +1195,13 @@ sub HTMLify {
 
 	$t =~ s/&nbsp;/ /gi;
 
-	return htmlify(decode_entities($t));
+	return htmlify(decode_entities($t), 0, 1);
 }
 
 sub FormatBillSummary {
 	my $summary = shift;
-
-	my @splits = split(/(Division|Title|Subtitle|Part|Chapter)\s+(\w+)\s*: (.*?) - |\((Sec)\. (\d+)\)|(\n)/, $summary);
+	
+	my @splits = split(/(Division|Title|Subtitle|Part|Chapter)\s+([^:\n]+)\s*: (.*?) - |\((Sec)\. (\d+)\)|(\n)/, $summary);
 	
 	my %secorder = (Division => 1, Title => 2, Subtitle => 3, Part 
 	=> 4, Chapter => 5, Section => 6, Paragraph => 7);
@@ -1056,6 +1213,8 @@ sub FormatBillSummary {
 	$ret .= "<Paragraph type=\"Overview\">";
 	push @stack, "Paragraph";
 	
+	my $lastisbullet;
+	
 	while (scalar(@splits) > 0) {
 		my $s = shift(@splits);
 		
@@ -1066,10 +1225,12 @@ sub FormatBillSummary {
 			if ($s eq "Sec") {
 				$s = "Section";
 				$sname = "";
+				if ($lastisbullet) { unshift @splits, "$s $sid"; next; }
 			} else {
 				$sname = shift(@splits);
+				if ($lastisbullet) { unshift @splits, "$s $sid: $sname"; next; }
 			}
-
+			
 			while (scalar(@stack) > 0 && $secorder{$s} <= $secorder{$stack[scalar(@stack)-1]}) {
 				$ret .= "</" . pop(@stack) . ">"; 
 				pop @idstack;
@@ -1091,6 +1252,8 @@ sub FormatBillSummary {
 			
 			$ret .= "<Paragraph>$s";
 			push @stack, 'Paragraph';
+			
+			$lastisbullet = ($s =~ /<br\/>- $/);
 		}
 	}
 
