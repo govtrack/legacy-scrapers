@@ -39,10 +39,16 @@ sub GetPeopleList {
 	# WRITE OUT PERSON DATABASE GENERAL INFO
 	my @reps = DBSelect(HASH, people, [id, firstname, middlename, lastnameenc, namemod, nickname, birthday, gender, religion, osid, bioguideid, metavidid, youtubeid], []);
 
-	open PEOPLE, ">$outdir/people.xml";
-	binmode(PEOPLE, ":utf8");
-	print PEOPLE '<?xml version="1.0" ?>' . "\n";
-	print PEOPLE "<people>\n";
+	open PEOPLE_ALL, ">../data/us/people.xml";
+	binmode(PEOPLE_ALL, ":utf8");
+	print PEOPLE_ALL '<?xml version="1.0" ?>' . "\n";
+	print PEOPLE_ALL "<people>\n";
+
+	open PEOPLE_CURRENT, ">../data/us/$session/people.xml";
+	binmode(PEOPLE_CURRENT, ":utf8");
+	print PEOPLE_CURRENT '<?xml version="1.0" ?>' . "\n";
+	print PEOPLE_CURRENT "<people session=\"$session\">\n";
+	
 	foreach my $rep (@reps) {
 		my %rep = %{ $rep };
 		foreach my $a (keys(%rep)) {
@@ -54,79 +60,100 @@ sub GetPeopleList {
 			$rep{firstname} .= " $rep[2]";
 			$rep{middlename} = "";
 		}
-		print PEOPLE "\t<person id='$rep{id}'";
-		print PEOPLE " lastname='$rep{lastnameenc}'";
-		print PEOPLE " firstname='$rep{firstname}'";
-		print PEOPLE " middlename='$rep{middlename}'" if $rep{middlename} ne "";
-		print PEOPLE " namemod='$rep{namemod}'" if $rep{namemod} ne "";
-		print PEOPLE " nickname='$rep{nickname}'" if $rep{nickname} ne "";
-		print PEOPLE " birthday='$rep{birthday}'" if $rep{birthday} ne "";
-		print PEOPLE " gender='$rep{gender}'" if $rep{gender} ne "";
-		print PEOPLE " religion='$rep{religion}'" if $rep{religion} ne "";
-		print PEOPLE " osid='$rep{osid}'" if $rep{osid} ne "";
-		print PEOPLE " bioguideid='$rep{bioguideid}'" if $rep{bioguideid} ne "";
-		print PEOPLE " metavidid='$rep{metavidid}'" if $rep{metavidid} ne "";
-		print PEOPLE " youtubeid='$rep{youtubeid}'" if $rep{youtubeid} ne "";
-		
-		$Person{$rep{id}}{NAME} = "$rep{firstname} $rep{lastnameenc}";
 
-		my @role = DBSelectFirst(people_roles, [type, state, district, party],
+		my @currole = DBSelectFirst(people_roles, [type, state, district, party],
 			["personid=$rep{id}",
 			 "(type='rep' or type='sen')",
 			 "startdate<='" . DateToDBString(EndOfSession($session)) . "'",
 			 "enddate>='" . DateToDBString(StartOfSession($session)) . "'",
-				 ]);
-		if (defined($role[0])) {
-			if ($role[3] =~ /^(.)/) { $role[3] = $1; }
-			if ($role[0] eq "sen") {
-				print PEOPLE " title='Sen.' state='$role[1]'";
-				$Person{$rep{id}}{NAME} = "Sen. $Person{$rep{id}}{NAME} [$role[3], $role[1]]";
-			} elsif ($role[0] eq "rep") {
-				print PEOPLE " title='Rep.' state='$role[1]' district='$role[2]'";
-				$Person{$rep{id}}{NAME} = "Rep. $Person{$rep{id}}{NAME} [$role[3], $role[1]-$role[2]]";
+				 ], "ORDER BY startdate DESC");
+
+		$Person{$rep{id}}{NAME} = "$rep{firstname} $rep{lastnameenc}";
+
+		if (defined($currole[0])) {
+			if ($currole[3] =~ /^(.)/) { $currole[3] = $1; } # party first letter
+			if ($currole[0] eq "sen") {
+				$Person{$rep{id}}{CUR_INFO} = " title='Sen.' state='$currole[1]'";
+				$Person{$rep{id}}{NAME} = "Sen. $Person{$rep{id}}{NAME} [$currole[3], $currole[1]]";
+			} elsif ($currole[0] eq "rep") {
+				$Person{$rep{id}}{CUR_INFO} = " title='Rep.' state='$currole[1]' district='$currole[2]'";
+				$Person{$rep{id}}{NAME} = "Rep. $Person{$rep{id}}{NAME} [$currole[3], $currole[1]-$currole[2]]";
 			}
 		}
 
-		print PEOPLE " name='$Person{$rep{id}}{NAME}'";
-		print PEOPLE " >\n";
+		for my $PEOPLE ('PEOPLE_ALL', 'PEOPLE_CURRENT') {
+			# If there's no role for this person in this session don't put
+			# into current file.
+			if ($PEOPLE eq 'PEOPLE_CURRENT' && !defined($currole[0])) { next; }
+			
+			print $PEOPLE "\t<person id='$rep{id}'";
+			print $PEOPLE " lastname='$rep{lastnameenc}'";
+			print $PEOPLE " firstname='$rep{firstname}'";
+			print $PEOPLE " middlename='$rep{middlename}'" if $rep{middlename} ne "";
+			print $PEOPLE " namemod='$rep{namemod}'" if $rep{namemod} ne "";
+			print $PEOPLE " nickname='$rep{nickname}'" if $rep{nickname} ne "";
+			print $PEOPLE " birthday='$rep{birthday}'" if $rep{birthday} ne "";
+			print $PEOPLE " gender='$rep{gender}'" if $rep{gender} ne "";
+			print $PEOPLE " religion='$rep{religion}'" if $rep{religion} ne "";
+			print $PEOPLE " osid='$rep{osid}'" if $rep{osid} ne "";
+			print $PEOPLE " bioguideid='$rep{bioguideid}'" if $rep{bioguideid} ne "";
+			print $PEOPLE " metavidid='$rep{metavidid}'" if $rep{metavidid} ne "";
+			print $PEOPLE " youtubeid='$rep{youtubeid}'" if $rep{youtubeid} ne "";
+			print $PEOPLE " name='$Person{$rep{id}}{NAME}'";
+			print $PEOPLE $Person{$rep{id}}{CUR_INFO};
+			print $PEOPLE " >\n";
 
-		my @roles = DBSelect(people_roles, [type, startdate, enddate, party, state, district, class, url], ["personid=$rep{id}"], "ORDER BY startdate");
-		foreach my $role (@roles) {
-			my @role = @{ $role };
-			$role[3] = htmlify($role[3], 1);
-			print PEOPLE "\t\t<role";
-			print PEOPLE " type='$role[0]'";
-			print PEOPLE " startdate='$role[1]'";
-			print PEOPLE " enddate='$role[2]'";
-			print PEOPLE " party='$role[3]'";
-			print PEOPLE " state='$role[4]'";
-			print PEOPLE " district='$role[5]'";
-			print PEOPLE " url='$role[7]'" if $role[7] ne "";
-			print PEOPLE " />\n";
-		}
+			# For the ALL file put in all roles in ascending order.
+			# For the CURRENT file just put in roles this session (could be more than one).
+			my @roles = DBSelect(people_roles, [type, startdate, enddate, party, state, district, class, url],
+				["personid=$rep{id}",
+					($PEOPLE eq 'PEOPLE_CURRENT' ? "startdate<='" . DateToDBString(EndOfSession($session)) . "'" : 1),
+					($PEOPLE eq 'PEOPLE_CURRENT' ? "enddate>='" . DateToDBString(StartOfSession($session)) . "'" : 1),
+				],
+				"ORDER BY startdate");
 
-		my @comms = DBSelect(people_committees, [committeeid, role], ["personid=$rep{id}"]);
-		foreach my $comm (@comms) {
-			my ($cid, $role) = @{ $comm };
-			my ($cname, $cparent) = DBSelectFirst(committees, [thomasname, parent], ["id='$cid'"]);
-			my $csname = "";
-			if ($cparent ne "") {
-				$csname = $cname;
-				($cname) = DBSelectFirst(committees, [thomasname], ["id='$cparent'"]);
+			foreach my $role (@roles) {
+				my @role = @{ $role };
+				$role[3] = htmlify($role[3], 1);
+				print $PEOPLE "\t\t<role";
+				print $PEOPLE " type='$role[0]'";
+				print $PEOPLE " startdate='$role[1]'";
+				print $PEOPLE " enddate='$role[2]'";
+				print $PEOPLE " party='$role[3]'";
+				print $PEOPLE " state='$role[4]'";
+				print $PEOPLE " district='$role[5]'";
+				print $PEOPLE " url='$role[7]'" if $role[7] ne "";
+				print $PEOPLE " current='1'" if ($role[1] le DateToDBString(time) && $role[2] ge DateToDBString(time));
+				print $PEOPLE " />\n";
 			}
-			foreach my $x ($cname, $csname) { $x = htmlify($x, 1); }
-			print PEOPLE "\t\t<current-committee-assignment";
-			#print PEOPLE " id='$cid'";
-			print PEOPLE " committee='$cname'";
-			print PEOPLE " subcommittee='$csname'" if ($csname ne "");
-			print PEOPLE " role='$role'" if ($role ne "");
-			print PEOPLE " />\n";
-		}
 		
-		print PEOPLE "\t</person>\n";
+			# Put current committee assignments into the CURRENT file only.
+			if ($PEOPLE eq 'PEOPLE_CURRENT') {
+			my @comms = DBSelect(people_committees, [committeeid, role], ["personid=$rep{id}"]);
+			foreach my $comm (@comms) {
+				my ($cid, $role) = @{ $comm };
+				my ($cname, $cparent) = DBSelectFirst(committees, [thomasname, parent], ["id='$cid'"]);
+				my $csname = "";
+				if ($cparent ne "") {
+					$csname = $cname;
+					($cname) = DBSelectFirst(committees, [thomasname], ["id='$cparent'"]);
+				}
+				foreach my $x ($cname, $csname) { $x = htmlify($x, 1); }
+				print $PEOPLE "\t\t<committee-assignment";
+				print $PEOPLE " committee='$cname'";
+				print $PEOPLE " subcommittee='$csname'" if ($csname ne "");
+				print $PEOPLE " role='$role'" if ($role ne "");
+				print $PEOPLE " />\n";
+			}
+			}
+			
+			print $PEOPLE "\t</person>\n";
+		}
 	}
-	print PEOPLE "</people>\n";
-	close PEOPLE;
+	print PEOPLE_ALL "</people>\n";
+	print PEOPLE_CURRENT "</people>\n";
+	close PEOPLE_ALL;
+	close PEOPLE_CURRENT;
 }
 
 sub GenStats {
