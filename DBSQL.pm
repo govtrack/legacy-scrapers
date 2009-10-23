@@ -43,11 +43,12 @@ sub Close {
 sub Execute {
 	my $sth = $dbh->prepare($_[0]);
 	$sth->execute();
-	if ($sth->rows) {
+	if ($sth->{NUM_OF_FIELDS}) {
 		my @ret = @{ $sth->fetchall_arrayref() };
 		$sth->finish();
 		return @ret;
 	} else {
+		$sth->finish();
 		my @ret = ();
 		return @ret;
 	}
