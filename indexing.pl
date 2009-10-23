@@ -151,6 +151,7 @@ sub IndexBill {
 	if ($holdBillSummaryFileWrite == $session) {
 		if (!$billSummaryFile) {
 			if (-e $bsfn) {
+				$XMLPARSER->keep_blanks(0);
 				$billSummaryFile = $XMLPARSER->parse_file($bsfn);
 			} else {
 				$billSummaryFile = $XMLPARSER->parse_string("<bills session=\"$session\"/>");

@@ -73,6 +73,11 @@ sub DownloadRollCallVotesAll {
 	}
 
 	DBClose() if !$noopendb;
+	
+	# If we found votes, touch the website to force the cache to clear.
+	if ($votesfetched != 0) {
+		system("touch ../../website/style/master.xsl");
+	}
 
 	if (($votesfetched == 0 && !$forceindex) || $forceindex eq 'no') { return; }
 	

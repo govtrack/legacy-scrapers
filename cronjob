@@ -1,0 +1,139 @@
+#!/usr/bin/perl
+
+chdir "/home/govtrack/scripts/gather";
+
+require "general.pl";
+require "persondb.pl";
+require "db.pl";
+
+@A = @ARGV;
+undef @ARGV;
+
+my $backdate = 1;
+if ($A[0] eq "DATE") { shift(@A); $backdate = shift(@A); }
+
+my $retdate = time - $backdate*60*60*24;
+my $session = SessionFromDate($retdate);
+
+print `date`;
+
+GovDBOpen();
+
+&TestIsWeekly;
+
+#$OUTPUT_ERRORS_ONLY = 1;
+
+if ($A[0] eq "EARLYGATHER") { DoEarlyGather(); }
+if ($A[0] eq "" || $A[0] eq "GATHER") { DoNoonGather(); }
+if ($A[0] eq "" || $A[0] eq "INDEX") { DoIndex(); }
+if ($A[0] eq "EMAILS") { DoEmails(); }
+
+print "$HTTP_BYTES_FETCHED bytes fetched.\n";
+print `date`;
+
+DBClose();
+
+# Touch the website to force the cache to clear.
+system("touch ../../website/style/master.xsl");
+
+sub DoEarlyGather {
+	my $isNoon = shift;
+
+	# Update any bills whose THOMAS summary changed.
+	require "parse_status.pl";
+	UpdateBills($session);
+
+	# Update any bills mentioned in the daily digest
+	require "update_by_digest.pl";
+	GetModifiedBills(0, 1, $isNoon);
+
+	# Update any bills with status passed congressional action
+	RefreshMaybeModifiedBills();
+
+	# Get roll call votes
+	DownloadRollCallVotesAll(undef, 1, 1, 1);
+
+	require "parse_committeeschedule.pl";
+	FetchCommitteeSchedule();
+
+	require "fetchbilltext.pl";
+	GetBillFullText($session);
+	CreateGeneratedBillTexts($session);
+}
+
+sub DoNoonGather {
+	DoEarlyGather(1);
+
+	require "parse_record.pl";
+	GetCR('s', $retdate, 1);
+	GetCR('h', $retdate, 1);
+
+	require "fetchcbo.pl";
+	GetCBO();
+	
+	require "fetchomb.pl";
+	#GetOMB($retdate);
+	
+	require "technorati.pl";
+	ScanTechnorati();
+	
+	system("perl googlesitemap.pl");
+	
+	#system("perl congresspedia.pl > /dev/null");
+}
+
+sub DoIndex {
+	# INDEXES
+
+	print "Indexing CR\n";
+	require "indexcr.pl";
+	MakeCRIndex($session);
+
+	if ($Weekly) {
+		# REP STATS
+		print "RepStats\n";
+		require "repstat.pl";
+		DoRepStats($session);
+	
+		# SUMMARY
+		print "StatsSummary\n";
+		require "statsummary.pl";
+		DoStatsSummary($session);
+	}
+	
+	# LUCENE
+	
+	print "Lucene\n";
+	system("cd ../../website/bin; /usr/local/bin/mono Indexer.exe ../../data/us/$session");
+	
+	require "getpopularmonitors.pl";
+	GetPopularMonitors();
+	
+	require "indexusc.pl";
+	IndexBillsUSC($session);
+	
+	system('mysql -u root govtrack -Be "SELECT DISTINCT value FROM billindex WHERE idx = \"crs\"" > /home/govtrack/data/us/crs_terms');
+	
+	print `date`;
+}
+
+
+sub DoEmails {
+	my $bin = "cd ../../website/bin; /usr/local/bin/mono GovTrackEmailUpdates.exe";
+	system("$bin daily");
+
+	if ($Weekly) { system("$bin weekly"); }
+}
+
+sub TestIsWeekly {
+	my ($sec,$min,$hour,$mday,$mon,$year,$wday,$yday,$isdst) = localtime(time);
+	$Weekly = ($wday == 0);
+}
+
+sub RefreshMaybeModifiedBills {
+	require "parse_status.pl";
+	RefreshBills($session,
+		"status/vote2[\@result='pass' and (ancestor::bill/\@type='s' or ancestor::bill/\@type='h')]|status/topresident|status/signed", "EXISTS",
+		1);
+	#RefreshBills($session, "count(subjects/*)=0", "", 1);
+}
