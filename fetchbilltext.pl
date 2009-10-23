@@ -180,20 +180,16 @@ sub GetBillFullText {
 	foreach my $bill (readdir(BILLS)) {
 		if ($bill !~ /([hsrcj]+)(\d+)\.xml/) { next; }
 		my ($type, $number) = ($1, $2);
-		unlink "$textdir/$type/$type$number.pdf";
-		unlink "$textdir/$type/$type$number.txt";
-		unlink "$textdir/$type/$type$number.html";
-		unlink "$textdir/$type/$type$number.xml";
 		my @stz = GetBillStatusList($type);
+		for my $ext ('pdf', 'txt', 'html', 'xml') {
+		unlink "$textdir/$type/$type$number.$ext";
 		for (my $sli = scalar(@stz)-1; $sli>=0; $sli--) {
 			my $file = "$type$number$stz[$sli]";
-			if (-e "$textdir/$type/$file.pdf") {
-				symlink "$file.pdf", "$textdir/$type/$type$number.pdf";
-				symlink "$file.txt", "$textdir/$type/$type$number.txt";
-				symlink "$file.html", "$textdir/$type/$type$number.html";
-				symlink "$file.xml", "$textdir/$type/$type$number.xml";
+			if (-e "$textdir/$type/$file.$ext") {
+				symlink "$file.$ext", "$textdir/$type/$type$number.$ext";
 				last;
 			}
+		}
 		}
 	}
 	closedir BILLS;
@@ -398,7 +394,7 @@ sub FetchBillTextHTML2 {
 	# sometimes IH appears here as RIH
 	# sometimes the wrong status code shows up (EH instead of ENR)
 	if ($htmlpage !~ s/^[\w\W]*?<p>(<em>.<\/em>)?\s*([HRESCONJ\.]+ *$number R?($status|[A-Z]{2,3})(\dS)?[\n\r])/$2/i
-		&& $htmlpage !~ s/^[\w\W]*?\n\s*([HRESCONJ\.]+ *$number R?($status|[A-Z]{2,3})(\dS)?<p>[\n\r])/$1/i
+		&& $htmlpage !~ s/^[\w\W]*?\n\s*([HRESCONJ\.]+ *$number ?R?($status|[A-Z]{2,3}|IHIS|)(\dS)?<p>[\n\r])/$1/i
 		&& ($status ne 'enr' || $htmlpage !~ s/^[\w\W]*?<p>\s*([HRESCONJ\.]+ ?$number[\n\r])/$1/i)
 		&& $htmlpage !~ s/^[\w\W]*?<p>(<h3><b>Suspend the Rules and Pass the Bill)/$1/i
 		&& (($status ne 'as' && $status ne 'as2') || $htmlpage !~ s/^[\w\W]*?(<p>AMENDMENT NO. <b>\d+<\/b>\s*<p><i39>Purpose: In the nature of a substitute.<\/i39>)/$1/i)
@@ -549,7 +545,15 @@ sub CreateGeneratedBillTexts {
 
 			print "$genfile\n";
 
-			my $file = $XMLPARSER->parse_file("$infile");
+			my $file;
+			
+			eval {
+				$file = $XMLPARSER->parse_file("$infile");
+			};
+			if ($@) {
+				warn "$infile: $@";
+				next;
+			}
 			
 			$file->documentElement->setAttribute('status', $status);
 			AddIdAttributesToBillText($file, "t0:" . $status);
@@ -564,11 +568,11 @@ sub CreateGeneratedBillTexts {
 
 		for (my $i = 0; $i < scalar(@statuses)-1; $i++) {
 			my $status1 = $statuses[$i];
-			my $g1 = "$textdir/$type/$type$number$status1.html";
+			my $g1 = "$textdir/$type/$type$number$status1.gen.html";
 			if (!-e $g1) { next; }
 			for (my $j = $i+1; $j < scalar(@statuses); $j++) {
 				my $status2 = $statuses[$j];
-				my $g2 = "$textdir/$type/$type$number$status2.html";
+				my $g2 = "$textdir/$type/$type$number$status2.gen.html";
 				if (!-e $g2) { next; }
 				my $outfile = "$cmpdir/$type/$type${number}_$status1-$status2.xml";
 				if ($onlythisbill eq "" && -e $outfile) { next; }
