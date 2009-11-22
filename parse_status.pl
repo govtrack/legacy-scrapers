@@ -61,8 +61,9 @@ sub UpdateBills {
 		
 			my @lines = split(/[\n\r]/, $content);
 			for my $line (@lines) {
-				if ($line =~ /<hr>/) {
+				if ($line =~ /(.*)<hr>/) {
 					if (defined($rec)) {
+						$rec .= $1;
 						UpdateBills2($SESSION, $bt, $bn, $rec, \%changehash);
 					}
 	
@@ -116,20 +117,21 @@ sub UpdateBills {
 
 sub UpdateBills2 {
 	my ($bs, $bt, $bn, $rec, $changehash) = @_;
-
+	
 	$rec = md5_base64($rec);
 	if ($$changehash{"$bt$bn"} eq $rec) { return; }
-	$$changehash{"$bt$bn"} = $rec;
 	
 	print "Detected Update to $bt$bs-$bn.\n";
 	
 	if ($bt eq 'HZ') {
-		ParseAmendment($bs, 'h', 'Z', $bn);
+		if (!ParseAmendment($bs, 'h', 'Z', $bn)) { return; }
 	} elsif ($bt eq 'SP') {
-		ParseAmendment($bs, 's', 'P', $bn);
+		if (!ParseAmendment($bs, 's', 'P', $bn)) { return; }
 	} else {
-		GovGetBill($bs, $bt, $bn);
+		if (!GovGetBill($bs, $bt, $bn)) { return; }
 	}
+
+	$$changehash{"$bt$bn"} = $rec;
 }
 
 sub RefreshBills {
@@ -276,6 +278,7 @@ sub GovGetAllBills {
 		#if ($bb[0] =~ "^h") { next; }
 		
 		GovGetBill($SESSION, $bb[0], $bb[1], $SKIPIFEXISTS, $billstatuses{$bb[0] . $bb[1]});
+		sleep(5);
 	}
 }
 
@@ -295,7 +298,7 @@ sub GovGetBill {
 		open F, $xfn;
 		my $line = <F>;
 		close F;
-		if ($line =~ /updated="2009-07-12T/) {
+		if ($line =~ /updated="2009-11-13T/) {
 			return;
 		}
 	}
@@ -503,7 +506,7 @@ sub GovGetBill {
 							# continue to be debated, or debate may end, probably 
 							# with a "Motion to reconsider laid on the table Agreed 
 							# to without objection."
-							$STATE = ['PROVKILL:SUSPENSIONFAILED', $when]; # provisionally killed by failure to pass under suspension of the rules
+							$STATE = ['PROV_KILL:SUSPENSIONFAILED', $when]; # provisionally killed by failure to pass under suspension of the rules
 						} else {
 							# outright failure
 							$STATE = ['FAIL:ORIGINATING:HOUSE', $when];
@@ -521,11 +524,11 @@ sub GovGetBill {
 								$STATE = ['PASSED:CONCURRENTRES', $when];
 							} else {
 								# bills and joint resolutions not constitutional amendments
-								$STATE = ['PASSED', $when]; # passed by second chamber, now on to president
+								$STATE = ['PASSED:BILL', $when]; # passed by second chamber, now on to president
 							}
 						} elsif ($motion =~ /On motion to suspend the rules/) {
 							# See note above.
-							$STATE = ['PROVKILL:SUSPENSIONFAILED', $when]; # provisionally killed by failure to pass under suspension of the rules
+							$STATE = ['PROV_KILL:SUSPENSIONFAILED', $when]; # provisionally killed by failure to pass under suspension of the rules
 						} else {
 							# outright failure
 							$STATE = ['FAIL:SECOND:HOUSE', $when];
@@ -544,7 +547,7 @@ sub GovGetBill {
 					# House override on a Senate bill
 					} else {
 						if ($passfail eq 'pass') {
-							$STATE = ['ENACTED:VETOOVERRIDE', $when];
+							# Wait till the enacted line appears.
 						} else {
 							# override failure
 							$STATE = ['VETOED_OVERRIDE_FAIL_SECOND:HOUSE', $when];
@@ -608,7 +611,7 @@ sub GovGetBill {
 							}
 						} elsif ($votetype eq 'cloture') {
 							# A failed cloture vote is a provisional kill.
-							$STATE = ['PROVKILL:CLOTUREFAILED', $when];
+							$STATE = ['PROV_KILL:CLOTUREFAILED', $when];
 						} else {
 							# outright failure
 							$STATE = ['FAIL:ORIGINATING:SENATE', $when];
@@ -626,11 +629,11 @@ sub GovGetBill {
 								$STATE = ['PASSED:CONCURRENTRES', $when];
 							} else {
 								# bills and joint resolutions not constitutional amendments
-								$STATE = ['PASSED', $when]; # passed by second chamber, now on to president
+								$STATE = ['PASSED:BILL', $when]; # passed by second chamber, now on to president
 							}
 						} elsif ($votetype eq 'cloture') {
 							# See note above.
-							$STATE = ['PROVKILL:CLOTUREFAILED', $when];
+							$STATE = ['PROV_KILL:CLOTUREFAILED', $when];
 						} else {
 							# outright failure
 							$STATE = ['FAIL:SECOND:SENATE', $when];
@@ -649,7 +652,7 @@ sub GovGetBill {
 					# Senate override on a House bill
 					} else {
 						if ($passfail eq 'pass') {
-							$STATE = ['ENACTED:VETOOVERRIDE', $when];
+							# Wait till the enacted line appears.
 						} else {
 							# override failure
 							$STATE = ['VETOED:OVERRIDE_FAIL_SECOND:SENATE', $when];
@@ -676,11 +679,15 @@ sub GovGetBill {
 				$STATUSNOW = "<veto $statusdateattrs />";
 				push @ACTIONS, [$action_state, 2, "vetoed", $what, { @axndateattrs }];
 				$wasvetoed = 1;
-				$STATE = ['PROVKILL:VETO', $when]; # could be overridden
+				$STATE = ['PROV_KILL:VETO', $when]; # could be overridden
 			} elsif ($what =~ /Became (Public|Private) Law No: ([\d\-]+)\./) {
 				$STATUSNOW = "<enacted $statusdateattrs />";
 				push @ACTIONS, [$action_state, 2, "enacted", $what, { @axndateattrs, type => lc($1), number => $2 }];
-				$STATE = ['ENACTED', $when, {type => lc($1), number => $2}];
+				if (!$wasvetoed) {
+					$STATE = ['ENACTED:SIGNED', $when, {type => lc($1), number => $2}];
+				} else {
+					$STATE = ['ENACTED:VETO_OVERRIDE', $when, {type => lc($1), number => $2}];
+				}
 
 			} elsif ($what =~ /Passed House pursuant to/) {
 				my $votetype;
@@ -700,7 +707,7 @@ sub GovGetBill {
 					$STATE = ['PASSED:CONCURRENTRES', $when];
 				} else {
 					# bills and joint resolutions not constitutional amendments
-					$STATE = ['PASSED', $when]; # passed by second chamber, now on to president
+					$STATE = ['PASSED:BILL', $when]; # passed by second chamber, now on to president
 				}
 
 			} elsif ($what =~ /Motion to reconsider laid on the table Agreed to without objection/) {
@@ -774,6 +781,7 @@ sub GovGetBill {
 		# There's some bug in THOMAS that titles aren't appearing on the All Information status page.
 		$URL =~ s/\@[\w\W]*$/\@\@\@T/;
 		($titles, $mtime2) = Download($URL);
+		if (!$titles) { return; }
 	}
 	$titles =~ s/[\n\r]//g;
 	$titles =~ s/<\/?i>//gi;
@@ -801,6 +809,7 @@ sub GovGetBill {
 
 	$URL =~ s/\@[\w\W]*$/\@\@\@D\&summ2=m\&/;
 	($content, $mtime2) = Download($URL);
+	if (!$content) { return; }
 	$content =~ s/\n\r/\n/g;
 	$content =~ s/\r/ /g; # amazing, stray carriage returns
 	@content = split(/\n+/, $content);
@@ -821,6 +830,7 @@ sub GovGetBill {
 
 	$URL = "http://thomas.loc.gov/cgi-bin/bdquery/z?d$SESSION:$BILLTYPE2$BILLNUMBER:\@\@\@C";
 	($content, $mtime2) = Download($URL);
+	if (!$content) { return; }
 	@content = split(/[\n\r]+/, $content);
 	foreach $c (@content) {
 		if ($c =~ /<a href="\/cgi-bin\/bdquery(tr)?\/R\?[^"]+">([\w\W]*)<\/a>\s*<\/td><td width="65\%">([\w\W]+)<\/td><\/tr>/i) {
@@ -842,6 +852,7 @@ sub GovGetBill {
 
 	$URL = "http://thomas.loc.gov/cgi-bin/bdquery/z?d$SESSION:$BILLTYPE2$BILLNUMBER:\@\@\@J";
 	($content, $mtime2) = Download($URL);
+	if (!$content) { return; }
 	@content = split(/[\n\r]+/, $content);
 	foreach $c (@content) {
 		if ($c =~ /\@FIELD\(FLD001\+\@4/i ) {
@@ -857,6 +868,7 @@ sub GovGetBill {
 
 	$URL = "http://thomas.loc.gov/cgi-bin/bdquery/z?d$SESSION:$BILLTYPE2$BILLNUMBER:\@\@\@K";
 	($content, $mtime2) = Download($URL);
+	if (!$content) { return; }
 	@content = split(/[\n\r]+/, $content);
 	foreach $c (@content) {
 		if ($c =~ /<tr><td width="150"><a href="\/cgi-bin\/bdquery(tr)?\/z\?d(\d\d\d):\w+\d\d\d\d\d:">$BillPattern<\/a><\/td><td>([^<]+)<\/td><\/tr>/i) {
@@ -885,6 +897,7 @@ sub GovGetBill {
 
 	$URL = "http://thomas.loc.gov/cgi-bin/bdquery/z?d$SESSION:$BILLTYPE2$BILLNUMBER:\@\@\@A";
 	($content, $mtime2) = Download($URL);
+	if (!$content) { return; }
 	@content = split(/[\n\r]+/, $content);
 	foreach $c (@content) {
 		if ($c =~ /<a href="\/cgi-bin\/bdquery\/z\?d$SESSION:(HZ|SP)\d+:">/i ) {
@@ -1034,6 +1047,8 @@ EOF
 	close SUMMARY;
 	
 	IndexBill($SESSION, $BILLTYPE, $BILLNUMBER);
+	
+	return 1;
 }
 
 sub ParseAmendment {
@@ -1184,6 +1199,8 @@ $actions
 </amendment>
 EOF
 	close XML;
+	
+	return 1;
 }
 
 sub HTMLify {
