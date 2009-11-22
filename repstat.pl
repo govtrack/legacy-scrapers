@@ -56,9 +56,10 @@ sub GetPeopleList {
 			$rep{$a} = $b[0];
 			$rep{$a} = htmlify($rep{$a}, 1);
 		}
+		
+		$rep{firstnamedisplay} = $rep{firstname};
 		if ($rep{firstname} =~ /\.$/ && $rep{middlename} ne "") {
-			$rep{firstname} .= " $rep[2]";
-			$rep{middlename} = "";
+			$rep{firstnamedisplay} = $rep{middlename};
 		}
 
 		my @currole = DBSelectFirst(people_roles, [type, state, district, party],
@@ -68,7 +69,7 @@ sub GetPeopleList {
 			 "enddate>='" . DateToDBString(StartOfSession($session)) . "'",
 				 ], "ORDER BY startdate DESC");
 
-		$Person{$rep{id}}{NAME} = "$rep{firstname} $rep{lastnameenc}";
+		$Person{$rep{id}}{NAME} = "$rep{firstnamedisplay} $rep{lastnameenc}";
 
 		if (defined($currole[0])) {
 			if ($currole[3] =~ /^(.)/) { $currole[3] = $1; } # party first letter
@@ -469,6 +470,7 @@ sub PostProc2 {
 	my $P = shift;
 
 	if ($$P{NumVote} > 0) {
+		$$P{NoVote} = int($$P{NoVote});
 		$$P{NoVotePct} = $$P{NoVote} / $$P{NumVote};
 	}
 
