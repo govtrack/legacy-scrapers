@@ -814,24 +814,29 @@ sub MakeVoteMap {
 
 	for my $size ('large', 'small') {
 	for my $imgmode ('geo', 'carto') {
+	
+	my $scale = 2;
 
-	my $im = new GD::Image($size eq 'large' ? 400 : 220, $size eq 'large' ? 210 : 118, 1);
+	my $im = new GD::Image($size eq 'large' ? 400*$scale : 220*$scale, $size eq 'large' ? 210*$scale : 118*$scale, 1);
 	my $white = $im->colorAllocate(255,255,255);
 	my $black = $im->colorAllocate(0,0,0);
 	my $grey = $im->colorAllocate(150,150,150);
+	my $grey2 = $im->colorAllocate(230,230,230);
 	$im->useFontConfig(1);
 	$im->filledRectangle(0, 0, $im->width, $im->height, $white);
 
-	my %votecolor = (
+	my @votecolor = (
 		'-' => $im->colorAllocate(200,0,0),
-		'0' => $im->colorAllocate(0,255,255),
+		'+' => $im->colorAllocate(0,0,220),
+		'0' => $im->colorAllocate(0,230,230),
 		'P' => $im->colorAllocate(0,200,200),
-		'+' => $im->colorAllocate(0,0,255));
-	my %votecolorlt = (
-		'-' => $im->colorAllocate(220,80,80),
-		'0' => $im->colorAllocate(100,255,255),
-		'P' => $im->colorAllocate(100,200,200),
-		'+' => $im->colorAllocate(80,80,255));
+		);
+	my %votecolor = @votecolor;
+	my @opts = $votexml->findnodes('option');
+	for (my $i = 0; $i < scalar(@opts); $i++) {
+		my $vk = $opts[$i]->getAttribute('key');
+		if (!$votecolor{$vk}) { $votecolor{$vk} = $votecolor[($i % 4) * 2 + 1]; }
+	}
 
 	my %hadvote;
 
@@ -886,9 +891,6 @@ sub MakeVoteMap {
 		}
 		foreach my $gdpoly (@{ $DistrictPolys{"$size$imgmode$state$dist$sennum"} }) {
 			$im->filledPolygon($gdpoly, $votecolor{$vote});
-			#if ($imgmode eq 'carto' && $size eq 'large' && $reptype eq 'rep') {
-			#	$im->openPolygon($gdpoly, $votecolorlt{$vote});
-			#}
 		}
 
 		$hadvote{$vote} = 1;
@@ -903,37 +905,36 @@ sub MakeVoteMap {
 				$im->setAntiAliased($black);
 				$im->openPolygon($gdpoly, GD::gdAntiAliased);
 			} else {
-				$im->openPolygon($gdpoly, $black);
+				$im->setAntiAliased($grey2);
+				$im->openPolygon($gdpoly, GD::gdAntiAliased);
 			}
 		}
 	}
 
-	my %votekey = ('Aye' => '+', 'Nay' => '-', 'No Vote' => '0', 
-		'Present' => 'P');
-	my $keyx = 5;
-	my $font = $size eq 'large' ? gdLargeFont : gdSmallFont;
-	foreach my $vk ('Aye', 'Nay', 'Present', 'No Vote', 'Split') {
-		if (!$hadvote{$votekey{$vk}}) { next; }
-		$im->filledRectangle($keyx - $font->width/3,$im->height-1.25*$font->height-1,
-			$keyx + $font->width*(length($vk)+1/5), $im->height-.2*$font->height,
-			$votecolor{$votekey{$vk}});
-		#$im->string($font, $keyx,$im->height-1.2*$font->height, $vk, 
-		#	($vk eq "Aye" || $vk eq "Nay") ? $white : $black);
-		my $fs = 7;
-		if ($size eq 'small') { $fs = 5; }
-		$im->stringFT(($vk eq "Aye" || $vk eq "Nay") ? $white : $black, $ttFontName, $fs, 0, $keyx, $im->height-$fs, $vk, $ttFontOpts);
-		$keyx += $font->width*(length($vk)+1);
+	# scale it back down
+	my $im2 = new GD::Image($im->width/$scale, $im->height/$scale, 1);
+	$im2->copyResampled($im, 0,0, 0,0, $im2->width, $im2->height, $im->width, $im->height);
+	$im = $im2;
+
+	my $fs = 6;
+	my $keyx = 10;
+	if ($size eq 'small') { $fs = 5; }
+	my @bounds2 = GD::Image->stringFT($white, $ttFontName, $fs, 0, 0, $im->height-$fs, "Wp", $ttFontOpts); # ascender, descender
+	foreach my $vkn ($votexml->findnodes('option')) {
+		my $vk = $vkn->getAttribute('key');
+		my $vkt = $vkn->textContent;
+		if (!$hadvote{$vk}) { next; }
+		my @bounds = GD::Image->stringFT($white, $ttFontName, $fs, 0, $keyx, $im->height-$fs, $vkt, $ttFontOpts);
+		$im->filledRectangle($bounds[0]-2, $bounds[5] + $bounds2[1]-$bounds2[5], $bounds[4]+2, $bounds[5]-2, $votecolor{$vk});
+		$im->stringFT(($vk ne "0" && $vk ne "P") ? $white : $black, $ttFontName, $fs, 0, $keyx, $im->height-$fs, $vkt, $ttFontOpts);
+		$keyx = $bounds[4] + 6;
 	}
 
 	if ($size eq 'large' && $imgmode eq 'carto') {
-		$im->stringFT($grey, $ttFontName, 5, 0, 3, 8,
+		$im->stringFT($grey, $ttFontName, $fs, 0, 3, $fs+3,
 			$reptype eq 'sen' ? "This cartogram shows each state with equal area."
 							  : "This cartogram shows congressional districts with equal area.",
 			$ttFontOpts);
-		#$im->string(gdTinyFont, 3,2, 
-		#	$reptype eq 'sen' ? "This cartogram shows each state with equal area."
-		#					  : "This cartogram shows each congressional district with equal area.",
-		#	$grey);
 	}
 
 	my $small = $size eq 'large' ? '' : '-small';
