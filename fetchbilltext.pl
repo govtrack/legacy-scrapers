@@ -8,6 +8,10 @@ require "db.pl";
 
 my $gpolist;
 
+my %fdsysbilltype = (
+	h => 'hr', hr => 'hres', hj => 'hjres', hc => 'hconres',
+	's' => 's', sr => 'sres', sj => 'sjres', sc => 'sconres');
+	
 my @statuslist_h = (
 	ih,   #    Introduced in House
 	ihr,  #    Introduced in House-Reprint
@@ -181,7 +185,7 @@ sub GetBillFullText {
 		if ($bill !~ /([hsrcj]+)(\d+)\.xml/) { next; }
 		my ($type, $number) = ($1, $2);
 		my @stz = GetBillStatusList($type);
-		for my $ext ('pdf', 'txt', 'html', 'xml') {
+		for my $ext ('pdf', 'txt', 'html', 'xml', "mods.xml") {
 		unlink "$textdir/$type/$type$number.$ext";
 		for (my $sli = scalar(@stz)-1; $sli>=0; $sli--) {
 			my $file = "$type$number$stz[$sli]";
@@ -210,28 +214,63 @@ sub FetchBillTextPDF {
 		push @statuses, $status;
 	}
 	
-	foreach my $status (@statuses) {		
+	foreach my $status (@statuses) {
+		# PDF
+				
 		my $URL = "http://frwebgate.access.gpo.gov/cgi-bin/getdoc.cgi?dbname=" . $session . "_cong_bills&docid=f:$type$number$status.txt.pdf";
 		my $file = "$basedir/$type/$type$number$status.pdf";
-		if (-e $file) { next; }
-
-		print "Bill Text PDF: $session/$type$number/$status\n" if (!$OUTPUT_ERRORS_ONLY);
+		if (!-e $file) {
+			print "Bill Text PDF: $session/$type$number/$status\n" if (!$OUTPUT_ERRORS_ONLY);
 		
-		#sleep(1);
-		my $response = $UA->get($URL);
-		if (!$response->is_success) {
-			warn "Could not fetch bill text at $URL: " .
-				$response->code . " " .
-				$response->message;
-			next;
+			#sleep(1);
+			my $response = $UA->get($URL);
+			if (!$response->is_success) {
+				warn "Could not fetch bill text at $URL: " .
+					$response->code . " " .
+					$response->message;
+				next;
+			}
+			$HTTP_BYTES_FETCHED += length($response->content);
+		
+			mkdir $basedir;
+			mkdir "$basedir/$type";
+			open TEXT, ">$file";
+			print TEXT $response->content;
+			close TEXT;
 		}
-		$HTTP_BYTES_FETCHED += length($response->content);
 		
-		mkdir $basedir;
-		mkdir "$basedir/$type";
-		open TEXT, ">$file";
-		print TEXT $response->content;
-		close TEXT;
+		# MODS
+		
+		my $type2 = $fdsysbilltype{$type};
+
+		my $file = "$basedir/$type/$type$number$status.mods.xml";
+		if (!-e $file) {
+			print "Bill Text MODS: $session/$type$number/$status\n" if (!$OUTPUT_ERRORS_ONLY);
+			
+			#sleep(1);
+			# Statuses on FDSYS are generally capitalized, but not always, and it seems to be random.
+			my $status2 = uc($status);
+			my $URL = "http://www.gpo.gov/fdsys/pkg/BILLS-${session}${type2}${number}${status2}/mods.xml";
+			my $response = $UA->get($URL);
+			if (!$response->is_success || $response->content =~ /Error Detected/) {
+				$status2 = lc($status);
+				$URL = "http://www.gpo.gov/fdsys/pkg/BILLS-${session}${type2}${number}${status2}/mods.xml";
+				$response = $UA->get($URL);
+			}
+			if (!$response->is_success || $response->content =~ /Error Detected/) {
+				warn "Could not fetch bill text at $URL (tried capital/lowercase status): " .
+					$response->code . " " .
+					$response->message;
+				next;
+			}
+			$HTTP_BYTES_FETCHED += length($response->content);
+			
+			mkdir $basedir;
+			mkdir "$basedir/$type";
+			open TEXT, ">$file";
+			print TEXT $response->content;
+			close TEXT;
+		}
 	}
 }
 
