@@ -278,7 +278,6 @@ sub GovGetAllBills {
 		#if ($bb[0] =~ "^h") { next; }
 		
 		GovGetBill($SESSION, $bb[0], $bb[1], $SKIPIFEXISTS, $billstatuses{$bb[0] . $bb[1]});
-		sleep(5);
 	}
 }
 
