@@ -66,13 +66,36 @@ CREATE TABLE `people_roles` (
   `party` tinytext CHARACTER SET utf8,
   `state` varchar(5) CHARACTER SET utf8 DEFAULT NULL,
   `district` smallint(6) DEFAULT '0',
-  `class` varchar(8) CHARACTER SET utf8 DEFAULT NULL,
+  `class` tinyint(4) DEFAULT NULL,
   `url` varchar(100) CHARACTER SET utf8 DEFAULT NULL,
   `title` enum('REP','DEL','RC') NOT NULL DEFAULT 'REP',
   PRIMARY KEY (`personroleid`),
   KEY `personid` (`personid`),
   KEY `state` (`state`,`enddate`)
 ) ENGINE=MyISAM AUTO_INCREMENT=42503 DEFAULT CHARSET=latin1;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `people_videos`
+--
+
+DROP TABLE IF EXISTS `people_videos`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `people_videos` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `personid` int(11) NOT NULL,
+  `source` enum('YouTube','MetaVid') NOT NULL,
+  `date` datetime NOT NULL,
+  `title` tinytext NOT NULL,
+  `link` tinytext CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
+  `sourcedata` text CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
+  `thumbnail` tinytext NOT NULL,
+  PRIMARY KEY (`id`),
+  KEY `personid` (`personid`,`date`),
+  KEY `date` (`date`),
+  KEY `link` (`link`(127))
+) ENGINE=MyISAM AUTO_INCREMENT=3443206 DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -144,4 +167,4 @@ CREATE TABLE `committees` (
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2009-11-08 11:24:53
+-- Dump completed on 2009-11-27 12:31:52

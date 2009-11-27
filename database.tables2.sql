@@ -128,26 +128,20 @@ CREATE TABLE `billtitles` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
--- Table structure for table `votes`
+-- Table structure for table `billusc`
 --
 
-DROP TABLE IF EXISTS `votes`;
+DROP TABLE IF EXISTS `billusc`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
-CREATE TABLE `votes` (
-  `id` varchar(10) COLLATE utf8_unicode_ci NOT NULL,
-  `date` datetime NOT NULL,
-  `description` text COLLATE utf8_unicode_ci NOT NULL,
-  `result` text COLLATE utf8_unicode_ci NOT NULL,
-  `billsession` int(11) DEFAULT NULL,
-  `billtype` varchar(2) COLLATE utf8_unicode_ci DEFAULT NULL,
-  `billnumber` int(11) DEFAULT NULL,
-  `amdtype` char(1) COLLATE utf8_unicode_ci DEFAULT NULL,
-  `amdnumber` int(11) DEFAULT NULL,
-  PRIMARY KEY (`id`),
-  KEY `bill` (`billsession`,`billtype`,`billnumber`),
-  KEY `date` (`date`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+CREATE TABLE `billusc` (
+  `session` int(11) NOT NULL,
+  `type` varchar(2) NOT NULL,
+  `number` int(11) NOT NULL,
+  `ref` varchar(30) NOT NULL,
+  KEY `bill` (`session`,`type`,`number`),
+  KEY `ref` (`ref`,`session`)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -182,6 +176,20 @@ CREATE TABLE `monitormatrix` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
+-- Table structure for table `notes`
+--
+
+DROP TABLE IF EXISTS `notes`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `notes` (
+  `pageid` varchar(256) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
+  `xhtml` text CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
+  PRIMARY KEY (`pageid`)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
 -- Table structure for table `questions`
 --
 
@@ -200,7 +208,30 @@ CREATE TABLE `questions` (
   PRIMARY KEY (`id`),
   KEY `question` (`question`),
   KEY `topic` (`topic`(16))
-) ENGINE=MyISAM AUTO_INCREMENT=23953 DEFAULT CHARSET=utf8;
+) ENGINE=MyISAM AUTO_INCREMENT=25097 DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `votes`
+--
+
+DROP TABLE IF EXISTS `votes`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `votes` (
+  `id` varchar(10) COLLATE utf8_unicode_ci NOT NULL,
+  `date` datetime NOT NULL,
+  `description` text COLLATE utf8_unicode_ci NOT NULL,
+  `result` text COLLATE utf8_unicode_ci NOT NULL,
+  `billsession` int(11) DEFAULT NULL,
+  `billtype` varchar(2) COLLATE utf8_unicode_ci DEFAULT NULL,
+  `billnumber` int(11) DEFAULT NULL,
+  `amdtype` char(1) COLLATE utf8_unicode_ci DEFAULT NULL,
+  `amdnumber` int(11) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `bill` (`billsession`,`billtype`,`billnumber`),
+  KEY `date` (`date`)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
 
@@ -212,4 +243,4 @@ CREATE TABLE `questions` (
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2009-11-08 11:24:53
+-- Dump completed on 2009-11-27 12:31:52
