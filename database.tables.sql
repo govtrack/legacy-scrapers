@@ -41,12 +41,14 @@ CREATE TABLE `people` (
   `metavidid` tinytext COLLATE utf8_bin,
   `youtubeid` varchar(36) CHARACTER SET utf8 DEFAULT NULL,
   `twitterid` tinytext COLLATE utf8_bin,
+  `lismemberid` varchar(6) COLLATE utf8_bin DEFAULT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `bioguideid` (`bioguideid`),
   KEY `lastname` (`lastname`(30)),
   KEY `middlename` (`middlename`(15)),
   KEY `lastnameenc` (`lastnameenc`(15)),
-  KEY `lastnamealt` (`lastnamealt`(15))
+  KEY `lastnamealt` (`lastnamealt`(15)),
+  KEY `lismemberid` (`lismemberid`)
 ) ENGINE=MyISAM AUTO_INCREMENT=412384 DEFAULT CHARSET=utf8 COLLATE=utf8_bin;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
@@ -167,4 +169,4 @@ CREATE TABLE `committees` (
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2010-01-03 17:28:17
+-- Dump completed on 2010-01-03 18:03:39
