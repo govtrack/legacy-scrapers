@@ -208,7 +208,7 @@ CREATE TABLE `questions` (
   PRIMARY KEY (`id`),
   KEY `question` (`question`),
   KEY `topic` (`topic`(16))
-) ENGINE=MyISAM AUTO_INCREMENT=25097 DEFAULT CHARSET=utf8;
+) ENGINE=MyISAM AUTO_INCREMENT=26498 DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -243,4 +243,4 @@ CREATE TABLE `votes` (
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2009-11-27 12:31:52
+-- Dump completed on 2010-01-03 17:28:17
