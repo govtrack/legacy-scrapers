@@ -41,8 +41,8 @@ sub DownloadRollCallVotesAll {
 	
 	GovDBOpen() if !$noopendb;
 
-	my $SESSION = SessionFromYear($YEAR);
-	my $SUBSESSION = SubSessionFromYear($YEAR);
+	my $SESSION = SessionFromYear($YEAR, 1);
+	my $SUBSESSION = SubSessionFromYear($YEAR, 1);
 
 	my $votesfetched = 0;
 
@@ -59,16 +59,13 @@ sub DownloadRollCallVotesAll {
 	}
 	
 	# Download all of the senate roll call votes
-	$URL = "http://www.senate.gov/legislative/LIS/roll_call_lists/vote_menu_$SESSION" . "_" . "$SUBSESSION.htm";
+	$URL = "http://www.senate.gov/legislative/LIS/roll_call_lists/vote_menu_$SESSION" . "_" . "$SUBSESSION.xml";
 	my ($content, $mtime) = Download($URL);
-	if ($content && $content =~ /Unspecified/) { die "Senate vote list has an 'Unspecified' vote."; }
-	if ($content && $content =~ /roll_call_vote_cfm\.cfm\?congress=$SESSION\&session=$SUBSESSION\&vote=(\d+)/) {
-		my $maxSRoll = $1;
-		for (my $i = int($maxSRoll); $i >= 1; $i--) {
-			if ($skipifexists==1 && -e "../data/us/$SESSION/rolls/s$YEAR-$i.xml") { next; }
-			if (GetSenateVote($SESSION, $SUBSESSION, $YEAR, $i, $skipifexists)) {
-				$votesfetched++;
-			}
+	while ($content =~ /<vote_number>(\d+)<\/vote_number>/g) {
+		my $i = int($1);
+		if ($skipifexists==1 && -e "../data/us/$SESSION/rolls/s$YEAR-$i.xml") { next; }
+		if (GetSenateVote($SESSION, $SUBSESSION, $YEAR, $i, $skipifexists)) {
+			$votesfetched++;
 		}
 	}
 
@@ -102,7 +99,7 @@ sub DownloadRollCallVotesAll {
 		$node->setAttribute('title', $xml->findvalue('roll/question'));
 		
 		if ($xml->findvalue('roll/result') =~ /Passed|Agreed|Confirmed|Amendment Germane|Decision of Chair Sustained|Veto Overridden|Point of Order Sustained/i) { $node->setAttribute('result', 'pass'); }
-		elsif ($xml->findvalue('roll/result') =~ /Fail|Defeated|Rejected|Not Sustained|Amendment Not Germane/i) { $node->setAttribute('result', 'fail'); }
+		elsif ($xml->findvalue('roll/result') =~ /Fail|Defeated|Rejected|Not Sustained|Amendment Not Germane|Point of Order Not Well Taken/i) { $node->setAttribute('result', 'fail'); }
 		else { warn "$vote: Unparsed result: " . $xml->findvalue('roll/result'); }
 
 		my $counts = $xml->findvalue('roll/@aye') . "-" . $xml->findvalue('roll/@nay');
@@ -154,7 +151,7 @@ sub DownloadRollCallVotesForBills {
 	my $year = $ARGV[1];
 	my $skipexists = $ARGV[2];
 
-	my $session = SessionFromYear($year);
+	my $session = SessionFromYear($year, 1);
 	my @bills = GetBillList($session);
 	
 	&GovDBOpen;
@@ -167,8 +164,8 @@ sub DownloadRollCallVotesForBills {
 
 			my $roll = $votenode->getAttribute("roll");
 			my $where = $votenode->getAttribute("where");
-			my $session = SessionFromYear($year);
-			my $subsession = SubSessionFromYear($year);
+			my $session = SessionFromYear($year, 1);
+			my $subsession = SubSessionFromYear($year, 1);
 			if ($where eq "h") {
 				GetHouseVote($year, $roll, $skipexists);
 			} elsif ($where eq "s") {
@@ -186,7 +183,7 @@ sub DoCommandLine {
 	my $type = $ARGV[2];
 	my $rolls = $ARGV[3];
 	my $skipexists = $ARGV[4];
-	my $session = SessionFromYear($year);
+	my $session = SessionFromYear($year, 1);
 
 	&GovDBOpen;
 
@@ -199,7 +196,7 @@ sub DoCommandLine {
 		if ($type eq "h") {
 			GetHouseVote($year, $i, $skipexists);
 		} elsif ($type eq "s") {
-			GetSenateVote($session, SubSessionFromYear($year), $year, $i, $skipexists);
+			GetSenateVote($session, SubSessionFromYear($year, 1), $year, $i, $skipexists);
 		}
 	}
 	
@@ -255,7 +252,7 @@ sub RefreshBadVotes {
 			if ($where eq "h") {
 				GetHouseVote($year, $roll, 0);
 			} elsif ($where eq "s") {
-				GetSenateVote($session, SubSessionFromYear($year), $year, $roll, 0);
+				GetSenateVote($session, SubSessionFromYear($year, 1), $year, $roll, 0);
 			}
 		}
 	}
@@ -277,131 +274,88 @@ sub GetSenateVote {
 	my $ROLL2 = sprintf("%05d", $ROLL);
 
 	print "Fetching Senate roll $SESSION-$SUBSESSION $ROLL\n" if (!$OUTPUT_ERRORS_ONLY);
-	my $URL = "http://www.senate.gov/legislative/LIS/roll_call_lists/roll_call_vote_cfm.cfm?congress=$SESSION&session=$SUBSESSION&vote=$ROLL2";
+	my $URL = "http://www.senate.gov/legislative/LIS/roll_call_votes/vote$SESSION$SUBSESSION/vote_${SESSION}_${SUBSESSION}_${ROLL2}.xml";
 	my ($content, $mtime) = Download($URL);
-	if (!$content) { return; }
-	if ($content !~ /Question/) { warn "Vote not found on senate website: $URL"; return; }
-	my @contentlines = split(/[\n\r]+/, $content);
+	if (!$content) { warn "Vote not found on senate website: $URL"; return; }
+	my $doc = $XMLPARSER->parse_string($content)->documentElement;
 
-	my $TYPE = "";
-	my $QUESTION = "";
-	my $REQUIRED = "";
-	my $RESULT = "";
-	my $WHEN = undef;
-	my $DATETIME = undef;
-	my @aaye = ();
-	my @anay = ();
-	my @anv = ();
-	my @apres = ();
+	my $TYPE = $doc->findvalue('question');
+	my $QUESTION = $TYPE . ' (' . $doc->findvalue('vote_title') . ')';
+	my $REQUIRED = $doc->findvalue('majority_requirement');
+	my $RESULT = $doc->findvalue('vote_result');
 	my %votes = ();
+
+	# Ensure the options are noted, even if no one votes that way.
+	if ($TYPE eq "Guilty or Not Guilty") {
+		$votes{'Guilty'} = [];
+		$votes{'Not Guilty'} = [];
+	} else {
+		$votes{'Yea'} = [];
+		$votes{'Nay'} = [];
+	}
+	$votes{'Present'} = [];
+	$votes{'Not Voting'} = [];
+
+	my $DATETIME = ParseDateTime($doc->findvalue('vote_date'));
+	my $WHEN = DateTimeToDate($DATETIME);
+
 	my $BILL;
-	my $AMENDMENT;
-	
-	my $mode = 0;
-	
-	if ($content =~ /<b>Question: <\/b>\s+<question>([\w ]+)<\/question>\s+([^<]+)/) {
-		$TYPE = $1;
-		$QUESTION = $TYPE;
-		my $EXTRA = $2;
-		$EXTRA =~ s/\s*[\n\r]+\s*/ /g;
-		if ($EXTRA ne "") { $QUESTION = "$TYPE $EXTRA"; }
-		
-		# Ensure the options are noted.
-		if ($TYPE eq "Guilty or Not Guilty") {
-			$votes{'Guilty'} = [];
-			$votes{'Not Guilty'} = [];
-		} else {
-			$votes{'Yea'} = [];
-			$votes{'Nay'} = [];
-		}
-		$votes{'Present'} = [];
-		$votes{'Not Voting'} = [];
-	}
-
-	foreach my $line (@contentlines) {
-		if ($mode == 0) {
-			if ($line =~ /Required For Majority: <\/b><td class="contenttext">([\w\W]+?)<\/td>/i) {
-				$REQUIRED = $1;
-			}
-
-			#if ($line =~ /Vote Result: (Bill|Resolution) (Passed|Failed|Agreed|Rejected)/) {
-			if ($line =~ /Vote Result: <\/b><td valign="top" class="contenttext">([\w\W]+?)<\/td>/i) {
-				$RESULT = $1;
-			}
-
-			if ($line =~ /Vote Date: <\/b><td valign="top" class="contenttext">((\w+) (\d+), (\d\d\d\d)(,?\s+(\d\d):(\d\d) (AM|PM))?)/i) {
-				my $dt = $1;
-				my $month = $Months{uc($2)}-1;
-				my $date = $3;
-				my $year = $4;
-				my $hour = $6;
-				my $minute = $7;
-				my $ampm = $8;
-				if ($ampm =~ /p/i && $hour != 12) { $hour += 12; }
-				if ($ampm =~ /a/i && $hour == 12) { $hour -= 12; }
-				$WHEN = timelocal(0,$minute,$hour,$date,$month,$year);
-				$DATETIME = ParseDateTime($dt);
-			}
-
-			if ($line =~ /Alphabetical by Senator Name/) { $mode = 1; }
-
-			if ($line =~ /Measure Number: [\w\W]+>$BillPattern</i) {
-				my ($t, $n) = ($1, $2);
-				$t = $BillTypeMap{lc($t)};
-				if (defined($t)) { $BILL = [$SESSION, $t, $n]; }
-				
-				# TODO: 106-1-18 references a bill in the previous congress
-			}
-
-			if ($line =~ /Amendment Number: [\w\W]+>S.Amdt. (\d+)</i) {
-				$AMENDMENT = ['regular', $SESSION, 's' . $1];
-			}
-			if (!defined($BILL) && defined($AMENDMENT) && $line =~ /to [\w\W]+>$BillPattern</i) {
-				my ($t, $n) = ($1, $2);
-				$t = $BillTypeMap{lc($t)};
-				if (defined($t)) { $BILL = [$SESSION, $t, $n]; }
-			}
-
-			if ($line =~ /Vice President/ && $line !~ /Statement of Purpose/) {
-				$mode = 2;
-			}
-		} elsif ($mode == 1) {
-			if ($line =~ />([\w\'\-,\. ]+) \(\w\w?\-(\w\w)\), <b>([^<\n\r]+)<\/b>/i) {
-				my $name = $1;
-				my $state = $2;
-				my $vote = $3;
-				
-				$name =~ s/Burdick, Quentin S/Burdick, Quentin N/;
-				
-				my $id = PersonDBGetID(
-					title => "sen",
-					name => $name,
-					state => $state,
-					when => $WHEN);
-				if (!defined($id)) { print "parsing Senate vote $SESSION-$SUBSESSION $ROLL: Unrecognized person: $name ($state)\n"; $id = 0; }
-
-				if ($vote eq "Present, Giving Live Pair") { $vote = "Present"; }
-				
-				$vote = htmlify($vote);
-				push @{$votes{$vote}}, $id;
-			}
-			if ($line =~ /<\/table>/i) { last; }
-		} elsif ($mode == 2) { # VP
-			my $vote;
-			$vote = htmlify($vote);
-			push @{$votes{$vote}}, "VP";
-			$mode = 0;
-		}
-	}
-
-	if (!defined($BILL) && $QUESTION =~ /$BillPattern/i) {
-		my ($t, $n) = ($1, $2);
-		$t =~ s/ //g;
-		$t = $BillTypeMap{lc($t)};
+	if ($doc->findvalue('document/document_type')) {
+		my $t = $BillTypeMap{lc($doc->findvalue('document/document_type'))};
+		my $n = $doc->findvalue('document/document_number');
 		if (defined($t)) { $BILL = [$SESSION, $t, $n]; }
+		# TODO: 106-1-18 references a bill in the previous congress?
 	}
 
-	#print join(" ", scalar(@aaye), scalar(@anay), scalar(@anv)) . "\n";
+	my $AMENDMENT;
+	if ($doc->findvalue('amendment/amendment_number')) {
+		if ($doc->findvalue('amendment/amendment_number') =~ /^S.Amdt. (\d+)$/i) {
+			$AMENDMENT = ['regular', $SESSION, 's' . $1];
+		} else {
+			die "Unrecognized amendment number type: " . $doc->findvalue('amendment/amendment_number') . " in $URL";
+		}
+		if ($doc->findvalue('amendment/amendment_to_document_number') =~ /^$BillPattern$/i) {
+			my ($t, $n) = ($1, $2);
+			$t = $BillTypeMap{lc($t)};
+			if (defined($t)) { $BILL = [$SESSION, $t, $n]; }
+		} else {
+			die "Amendment without bill in $URL";
+		}
+	}
+
+	if ($doc->findvalue('tie_breaker/by_whom')) {
+		if ($doc->findvalue('tie_breaker/by_whom') ne 'Vice President') { die "Non-VP tie breaker not implemented yet in $URL"; }
+		push @{$votes{$doc->findvalue('tie_breaker/tie_breaker_vote')}}, "VP";
+	}
+	
+	for my $m ($doc->findnodes('members/member')) {
+		my $name = $m->findvalue('last_name') . ', ' . $m->findvalue('first_name');
+		my $state = $m->findvalue('state');
+		my $vote = $m->findvalue('vote_cast');
+		
+		my $lmi = $m->findvalue('lis_member_id');
+		my $id;
+		if ($lmi) {
+			($id) = DBSelectFirst(people, [id], [DBSpecEQ(lismemberid, $lmi)]);
+		}
+		if (!$id) { 
+			$name =~ s/Burdick, Quentin S/Burdick, Quentin N/;
+			$id = PersonDBGetID(
+				title => "sen",
+				name => $name,
+				state => $state,
+				when => $WHEN);
+			if (!defined($id)) { print "parsing Senate vote $SESSION-$SUBSESSION $ROLL: Unrecognized person: $name ($state)\n"; $id = 0; }
+			elsif ($lmi) {
+				DBUpdate(people, ["id=$id"], lismemberid => $lmi);
+			}
+		}
+
+		if ($vote eq "Present, Giving Live Pair") { $vote = "Present"; }
+				
+		$vote = htmlify($vote);
+		push @{$votes{$vote}}, $id;
+	}
 
 	WriteRoll($fn, $mtime, "senate", $ROLL, $WHEN, $DATETIME, \%votes, $TYPE, $QUESTION, $REQUIRED, $RESULT, $BILL, $AMENDMENT);
 
@@ -413,7 +367,7 @@ sub GetHouseVote {
 	my $ROLL = shift;
 	my $SKIPIFEXISTS = shift;
 	
-	my $SESSION = SessionFromYear($YEAR);
+	my $SESSION = SessionFromYear($YEAR, 1);
 
 	my $fn = "../data/us/$SESSION/rolls/h$YEAR-$ROLL.xml";
 	if ($SKIPIFEXISTS && -e $fn) { return 0; }
@@ -566,11 +520,6 @@ sub GetHouseVote {
 		push @{$votes{$vote}}, $id;
 	}
 
-	#if (scalar(@aaye) != $ayes) { die "Vote totals don't match up: aye $ayes " . scalar(@aaye); }
-	#if (scalar(@anay) != $nays) { die "Vote totals don't match up: nay $nays " . scalar(@nay); }
-	#if (scalar(@anv) != $nvs) { die "Vote totals don't match up: not voting $nvs " . scalar(@anv); }
-	#if (scalar(@apr) != $presents) { die "Vote totals don't match up: present $presents " . scalar(@pr); }
-
 	WriteRoll($fn, $mtime, "house", $ROLL, $when, $datetime, \%votes, $type, $question, $required, $result, $bill, $amendment);
 	return 1;
 }
@@ -590,7 +539,7 @@ sub WriteRoll {
 	my $BILL = shift;
 	my $AMENDMENT = shift;
 
-	my $SESSION = SessionFromDate($when);
+	my $SESSION = SessionFromDateTime($datetime);
 	my $YEAR = YearFromDate($when);
 
 	my %votes = %{ $rvotes };
@@ -726,7 +675,7 @@ sub MakeVoteMap {
 
 	if ($votefile !~ /^\w(\d\d\d\d)-\d+$/) { die $votefile; }
 	my $year = $1;
-	my $session = SessionFromYear($year);
+	my $session = SessionFromYear($year, 1);
 	
 	if ($session < 109) { return; }
 

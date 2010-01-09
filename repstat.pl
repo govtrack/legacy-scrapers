@@ -65,8 +65,8 @@ sub GetPeopleList {
 		my @currole = DBSelectFirst(people_roles, [type, state, district, party],
 			["personid=$rep{id}",
 			 "(type='rep' or type='sen')",
-			 "startdate<='" . DateToDBString(EndOfSession($session)) . "'",
-			 "enddate>='" . DateToDBString(StartOfSession($session)) . "'",
+			 "startdate<='" . EndOfSessionYMD($session) . "'",
+			 "enddate>='" . StartOfSessionYMD($session) . "'",
 				 ], "ORDER BY startdate DESC");
 
 		$Person{$rep{id}}{NAME} = "$rep{firstnamedisplay} $rep{lastnameenc}";
@@ -108,8 +108,8 @@ sub GetPeopleList {
 			# For the CURRENT file just put in roles this session (could be more than one).
 			my @roles = DBSelect(people_roles, [type, startdate, enddate, party, state, district, class, url],
 				["personid=$rep{id}",
-					($PEOPLE eq 'PEOPLE_CURRENT' ? "startdate<='" . DateToDBString(EndOfSession($session)) . "'" : 1),
-					($PEOPLE eq 'PEOPLE_CURRENT' ? "enddate>='" . DateToDBString(StartOfSession($session)) . "'" : 1),
+					($PEOPLE eq 'PEOPLE_CURRENT' ? "startdate<='" . EndOfSessionYMD($session) . "'" : 1),
+					($PEOPLE eq 'PEOPLE_CURRENT' ? "enddate>='" . StartOfSessionYMD($session) . "'" : 1),
 				],
 				"ORDER BY startdate");
 
@@ -122,14 +122,16 @@ sub GetPeopleList {
 				print $PEOPLE " enddate='$role[2]'";
 				print $PEOPLE " party='$role[3]'";
 				print $PEOPLE " state='$role[4]'";
-				print $PEOPLE " district='$role[5]'";
+				print $PEOPLE " district='$role[5]'" if ($role[0] eq 'rep');
+				print $PEOPLE " class='$role[6]'" if ($role[0] eq 'sen');
 				print $PEOPLE " url='$role[7]'" if $role[7] ne "";
 				print $PEOPLE " current='1'" if ($role[1] le DateToDBString(time) && $role[2] ge DateToDBString(time));
 				print $PEOPLE " />\n";
 			}
 		
 			# Put current committee assignments into the CURRENT file only.
-			if ($PEOPLE eq 'PEOPLE_CURRENT') {
+			# But when regenerating past files, don't put it in.
+			if ($PEOPLE eq 'PEOPLE_CURRENT' && !-e ("../data/us/" . ($session+1))) {
 			my @comms = DBSelect(people_committees, [committeeid, role], ["personid=$rep{id}"]);
 			foreach my $comm (@comms) {
 				my ($cid, $role) = @{ $comm };

@@ -119,9 +119,10 @@ sub UpdateBills2 {
 	my ($bs, $bt, $bn, $rec, $changehash) = @_;
 	
 	$rec = md5_base64($rec);
+
 	if ($$changehash{"$bt$bn"} eq $rec) { return; }
 	
-	print "Detected Update to $bt$bs-$bn.\n";
+	print "Detected Update to $bt$bs-$bn.\n" if (!$OUTPUT_ERRORS_ONLY);
 	
 	if ($bt eq 'HZ') {
 		if (!ParseAmendment($bs, 'h', 'Z', $bn)) { return; }
@@ -364,7 +365,7 @@ sub GovGetBill {
 
 		# TODO: Some bills (109th's debt ceiling limit) have No Sponsor.
 		# SPONSOR
-		if ($cline =~ /<br><b>Sponsor: <\/b>(No Sponsor|<a [^>]+>([\w\W]*)<\/a>\s+\[(\w\w(-\d+)?)\])/i) {
+		if ($cline =~ /<br \/><b>Sponsor: <\/b>(No Sponsor|<a [^>]+>([\w\W]*)<\/a>\s+\[(\w\w(-\d+)?)\])/i) {
 			my $SPONSOR_TEXT = $1;
 			$SPONSOR_NAME = $2;
 			$SPONSOR_STATE = $3;
@@ -596,7 +597,7 @@ sub GovGetBill {
 
 				push @ACTIONS, [$action_state, 2, $votenode, $what, { @axndateattrs, where => 's', type => $votetype, result => $passfail, how => $how, roll => $roll } ];
 				
-				if ($roll != 0) { GetSenateVote($SESSION, SubSessionFromYear(YearFromDateTime($when)), YearFromDateTime($when), $roll, 1); }
+				if ($roll != 0) { GetSenateVote($SESSION, SubSessionFromDateTime($when), YearFromDateTime($when), $roll, 1); }
 
 				if ($votenode eq 'vote') {
 				if ($votetype ne 'override') {
@@ -674,6 +675,11 @@ sub GovGetBill {
 			} elsif ($what =~ /Signed by President/) {
 				$STATUSNOW = "<signed $statusdateattrs />";
 				push @ACTIONS, [$action_state, 2, "signed", $what, { @axndateattrs }];
+			} elsif ($what =~ /Pocket Vetoed by President/) {
+				$STATUSNOW = "<veto pocket=\"1\" $statusdateattrs />";
+				push @ACTIONS, [$action_state, 2, "vetoed", $what, { @axndateattrs, pocket => 1 }];
+				$wasvetoed = 1;
+				$STATE = ['VETOED:POCKET', $when];
 			} elsif ($what =~ /Vetoed by President/) {
 				$STATUSNOW = "<veto $statusdateattrs />";
 				push @ACTIONS, [$action_state, 2, "vetoed", $what, { @axndateattrs }];
@@ -732,9 +738,7 @@ sub GovGetBill {
 			}
 
 		# COSPONSORS
-		} elsif ($cline =~ /<br><a href=[^>]+>(Rep|Sen) ([\w\W]+)<\/a> \[([A-Z\d\-]+)\] - (\d\d?\/\d\d?\/\d\d\d\d)(\(withdrawn - (\d\d?\/\d\d?\/\d\d\d\d)\))?/i) {
-			# Wish I could easily get the date of the cosponsorship,
-			# but it's on the next line.
+		} elsif ($cline =~ /<br ?\/><a href=[^>]+>(Rep|Sen) ([\w\W]+)<\/a> \[([A-Z\d\-]+)\] - (\d\d?\/\d\d?\/\d\d\d\d)(\(withdrawn - (\d\d?\/\d\d?\/\d\d\d\d)\))?/i) {
 			my $t = $1;
 			my $n = $2;
 			my $s = $3;
@@ -743,7 +747,7 @@ sub GovGetBill {
 			
 			my $i = PersonDBGetID(title => $t, name => $n, state => $s, when => ParseTime($d));
 			if (!defined($i)) {
-				warn "parsing bill $BILLTYPE$SESSION-$BILLNUMBER: Unknown person: $t, $n, $s";
+				warn "parsing bill $BILLTYPE$SESSION-$BILLNUMBER: Unknown person: $t, $n, $s on $d";
 				$COSPONSORS_MISSING = 1;
 			}
 			else {
@@ -767,7 +771,7 @@ sub GovGetBill {
 	}
 
 	if (!defined($INTRODUCED)) {
-		warn "parsing bill $BILLTYPE$SESSION-$BILLNUMBER: Failed parse, no introduced date found: $URL";
+		warn "parsing bill $BILLTYPE$SESSION-$BILLNUMBER: Failed parse, no introduced date found: $URL (sponsor $SPONSOR_NAME)";
 		return;
 	}
 
@@ -1087,14 +1091,14 @@ sub ParseAmendment {
 	foreach my $line (split(/\n/, $content)) {
 		$line =~ s/<\/?font[^>]*>//g;
 	
-		if ($line =~ /<br>Amends: [^>]*>\s*$BillPattern/i) {
+		if ($line =~ /<br \/>Amends: [^>]*>\s*$BillPattern/i) {
 			$billtype = $BillTypeMap{lc($1)};
 			$billnumber = $2;
 		} elsif ($line =~ /^ \(A(\d\d\d)\)/) {
 			$sequence = int($1);
-		} elsif ($line =~ /<br>Sponsor: <a [^>]*>(Rep|Sen) ([^<]*)<\/a> \[(\w\w(-\d+)?)\]/) {
+		} elsif ($line =~ /<br \/>Sponsor: <a [^>]*>(Rep|Sen) ([^<]*)<\/a> \[(\w\w(-\d+)?)\]/) {
 			($sptitle, $spname, $spstate) = ($1, $2, $3);
-		} elsif ($line =~ /<br>Sponsor: <a [^>]*>((House|Senate) [^<]*)<\/a>/) {
+		} elsif ($line =~ /<br \/>Sponsor: <a [^>]*>((House|Senate) [^<]*)<\/a>/) {
 			($spcommittee) = ($1);
 		} elsif ($line =~ /\((submitted|offered) (\d+\/\d+\/\d\d\d\d)\)/) {
 			$offered = $2;
@@ -1105,9 +1109,9 @@ sub ParseAmendment {
 				state => $spstate,
 				when => ParseTime($offered));
 			if (!defined($sponsor)) { warn "parsing amendment $session:$chamber$number: Unknown sponsor: $sptitle, $spname, $spstate (bill not fetched)"; return; }
-		} elsif ($line =~ s/^<p>AMENDMENT DESCRIPTION:<br>//) {
+		} elsif ($line =~ s/^<p>AMENDMENT DESCRIPTION:<br \/>//) {
 			$description = $line;
-		} elsif ($line =~ s/^<p>AMENDMENT PURPOSE:<br>//) {
+		} elsif ($line =~ s/^<p>AMENDMENT PURPOSE:<br \/>//) {
 			$purpose = $line;
 			if ($description eq "") { $description = $purpose; }
 		} elsif ($line =~ /<dt><strong>(\d+\/\d+\/\d\d\d\d( \d+:\d\d(am|pm))?):<\/strong><dd>([\w\W]*)/) {
@@ -1149,7 +1153,7 @@ sub ParseAmendment {
 					$method = "roll";
 					$rollattr = " roll=\"$roll\"";
 					
-					if (lc($chamber) eq "s") { GetSenateVote($session, SubSessionFromDate(ParseTime($when)), YearFromDate(ParseTime($when)), $roll, 1); }
+					if (lc($chamber) eq "s") { GetSenateVote($session, SubSessionFromDateTime(ParseDateTime($when)), YearFromDate(ParseTime($when)), $roll, 1); }
 					else { warn "parsing amendment $session:$chamber$number: Senate-style vote on House amendment?"; }
 				}
 				$actions .= "\t\t<vote $statusdateattrs result=\"$passfail\" how=\"$method\"$rollattr>$axnxml</vote>\n";

@@ -125,7 +125,7 @@ sub PersonDBGetID {
 		if ($fnames[scalar(@fnames)-1] =~ /^(du|de|La|Van)$/i) {
 			$lastname = pop(@fnames) . " " . $lastname;
 		}
-
+		
 	} else { # either just last name, or 'last, first' format
 		$lastname = $name;
 		@fnames = ();
@@ -148,13 +148,11 @@ sub PersonDBGetID {
 
 		($lastname, $namemod) = ParseSuffix($lastname, $namemod);
 		push @fnames, $namemod if ($namemod ne "");
-
-		#print "$lastname " . join("--", @fnames) . "\n";
 	}
 	
 	# Single letter first name entries need a period
 	foreach my $f (@fnames) {
-		if (length($f) == 1) { $f .= "."; }
+		if (length($f) == 1 || uc($f) eq "JR" || uc($f) eq "SR") { $f .= "."; }
 	}
 
 	#print join("--", @fnames) . " $lastname\n";
@@ -209,8 +207,8 @@ sub PersonDBGetID {
 
 		#if (defined($gender) && $$match{gender} ne $gender) { next; }
 
-		if ($lastname ne $$match{lastname} && $lastname eq $$match{middlename}) {
-			undef $$match{middlename};
+		if (lc($lastname) ne lc($$match{lastname}) && (lc($lastname) eq lc($$match{middlename}) || lc($fnames[scalar(@fnames)-1] . '-' . $lastname) eq lc($$match{lastname}) || lc($fnames[scalar(@fnames)-1] . ' ' . $lastname) eq lc($$match{lastname}))) {
+			delete $$match{middlename};
 		}
 
 		if ($cri{assumesuffix} && $namemod eq "" && $$match{namemod} ne "") { next; }
@@ -223,16 +221,16 @@ sub PersonDBGetID {
 		
 		# Make list of possible first name strings
 		my @fntests = ();
-		push @fntests, [$$match{firstname}, $$match{nickname}, $$match{namemod}] if ($$match{nickname} ne "");
-		push @fntests, [$$match{firstname}, $$match{middlename}, $$match{namemod}];
-		push @fntests, [$$match{firstname}, "(" . $$match{nickname} . ")", $$match{namemod}] if ($$match{nickname} ne "");
-		push @fntests, [$$match{firstname}, "\"" . $$match{nickname} . "\"", $$match{namemod}] if ($$match{nickname} ne "");
-		push @fntests, [$$match{firstname}, $$match{middlename}, "(" . $$match{nickname} . ")", $$match{namemod}] if ($$match{nickname} ne "");
-		push @fntests, [$$match{firstname}, $$match{middlename}, "\"" . $$match{nickname} . "\"", $$match{namemod}] if ($$match{nickname} ne "");
-		push @fntests, [$$match{nickname}, $$match{middlename}, $$match{namemod}] if ($$match{nickname} ne "");
-		push @fntests, [$$match{firstname}, $$match{namemod}] if ($$match{namemod} ne "");
-		push @fntests, [$$match{nickname}, $$match{namemod}] if ($$match{nickname} ne "");
-		push @fntests, [$$match{middlename}] if ($$match{middlename} ne "");
+		push @fntests, [1, $$match{firstname}, $$match{nickname}, $$match{namemod}] if ($$match{nickname} ne "");
+		push @fntests, [1, $$match{firstname}, $$match{middlename}, $$match{namemod}];
+		push @fntests, [1, $$match{firstname}, "(" . $$match{nickname} . ")", $$match{namemod}] if ($$match{nickname} ne "");
+		push @fntests, [1, $$match{firstname}, "\"" . $$match{nickname} . "\"", $$match{namemod}] if ($$match{nickname} ne "");
+		push @fntests, [1, $$match{firstname}, $$match{middlename}, "(" . $$match{nickname} . ")", $$match{namemod}] if ($$match{nickname} ne "");
+		push @fntests, [1, $$match{firstname}, $$match{middlename}, "\"" . $$match{nickname} . "\"", $$match{namemod}] if ($$match{nickname} ne "");
+		push @fntests, [1, $$match{nickname}, $$match{middlename}, $$match{namemod}] if ($$match{nickname} ne "");
+		push @fntests, [1, $$match{firstname}, $$match{namemod}] if ($$match{namemod} ne "");
+		push @fntests, [1, $$match{nickname}, $$match{namemod}] if ($$match{nickname} ne "");
+		push @fntests, [0, $$match{middlename}] if ($$match{middlename} ne "");
 		
 		my $fnmatch = 0;
 		my $matchtest;
@@ -260,6 +258,8 @@ sub PersonDBGetID {
 sub fntestcmp {
 	my @person = @{ $_[0] };
 	my @test = @{ $_[1] };
+	
+	my $sc = shift(@test);
 
 	for (my $i = 0; $i < scalar(@test); $i++) {
 		$test[$i] =~ s/(\.)([^\s|])/$1 $2/g; # 'C.A.' => 'C.', 'A.'
@@ -270,7 +270,7 @@ sub fntestcmp {
 
 	for (my $i = 0; $i < scalar(@test); $i++) {
 		if ($test[$i] eq "") { next; }
-		if ($i >= scalar(@person)) { return $nmatch; }
+		if ($i >= scalar(@person)) { return $nmatch + $sc; }
 
 		my $f = 0;
 		foreach my $t (split(/\|/, lc($test[$i]))) {
@@ -284,10 +284,10 @@ sub fntestcmp {
 		}
 		if ($f == 1) { $nmatch++; next; }
 
-		return 0;	
+		return 0;
 	}
 
-	return $nmatch;
+	return $nmatch + $sc;
 }
 
 sub ParseSuffix {

@@ -13,7 +13,7 @@ my $backdate = 1;
 if ($A[0] eq "DATE") { shift(@A); $backdate = shift(@A); }
 
 my $retdate = time - $backdate*60*60*24;
-my $session = SessionFromDate($retdate);
+my $session = SessionFromDateTime(DateToDBString($retdate));
 
 print `date`;
 
@@ -21,7 +21,7 @@ GovDBOpen();
 
 &TestIsWeekly;
 
-#$OUTPUT_ERRORS_ONLY = 1;
+$OUTPUT_ERRORS_ONLY = 1;
 
 if ($A[0] eq "EARLYGATHER") { DoEarlyGather(); }
 if ($A[0] eq "" || $A[0] eq "GATHER") { DoNoonGather(); }
@@ -42,13 +42,6 @@ sub DoEarlyGather {
 	# Update any bills whose THOMAS summary changed.
 	require "parse_status.pl";
 	UpdateBills($session);
-
-	# Update any bills mentioned in the daily digest
-	require "update_by_digest.pl";
-	GetModifiedBills(0, 1, $isNoon);
-
-	# Update any bills with status passed congressional action
-	RefreshMaybeModifiedBills();
 
 	# Get roll call votes
 	DownloadRollCallVotesAll(undef, 1, 1, 1);
@@ -74,8 +67,8 @@ sub DoNoonGather {
 	require "fetchomb.pl";
 	#GetOMB($retdate);
 	
-	require "technorati.pl";
-	ScanTechnorati();
+	#require "technorati.pl";
+	#ScanTechnorati();
 	
 	system("perl googlesitemap.pl");
 	

@@ -7,7 +7,7 @@ if ($ARGV[0] eq "THUMBS") {
 } elsif ($ARGV[0] eq 'IMPORT') {
 	my $pid = $ARGV[1];
 	if ($ARGV[2] =~ /http:/) {
-		system("wget -O ../data/photos/$ARGV[1].jpeg $ARGV[2]");
+		system("wget -O ../data/photos/$ARGV[1].jpeg \"$ARGV[2]\"");
 	} else {
 		if ($pid eq "") {
 			if ($ARGV[2] !~ /(^|\/)(\d+)\.jpeg$/) { die; }

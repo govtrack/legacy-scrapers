@@ -279,9 +279,10 @@ sub FetchBillTextLoadGPOList {
 	if (defined($gpolist)) { return; }
 
 	# Cache the list for 3 hours.
-	my @gpostat = stat("tmp.gpolist-$session");
+	mkdir "tmp";
+	my @gpostat = stat("tmp/gpolist-$session");
 	if ($gpostat[9] > time-60*60*3) {
-		$gpolist = `cat tmp.gpolist-$session`;
+		$gpolist = `cat tmp/gpolist-$session`;
 		return;
 	}
 	
@@ -494,6 +495,7 @@ sub FetchBillTextHTML2 {
 	$html =~ s/\s*(<\/p>)/$1/g;
 
 	open H, ">$file";
+	binmode(H, "utf8");
 	print H $html;
 	close H
 }

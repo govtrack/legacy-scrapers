@@ -44,7 +44,7 @@ sub GetCR {
 	my $DATE = shift;
 	my $skipifexists = shift;
 	
-	my $session = SessionFromYear(YearFromDate($DATE));
+	my $session = SessionFromYear(YearFromDate($DATE), 1);
 	my $digitdate = DateToDigitString($DATE);
 
 	my $url = "http://thomas.loc.gov/cgi-bin/query/B?r$session:\@FIELD(FLD003+$WHERE)+\@FIELD(DDATE+$digitdate)";

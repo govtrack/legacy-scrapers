@@ -3,6 +3,8 @@
 # to regenerate all indexes:
 # for x in {101..111}; do echo $x; perl indexing.pl MAKE_INDEX $x; done
 
+use Digest::MD5 qw(md5_base64);
+
 require "general.pl";
 require "db.pl";
 
@@ -65,7 +67,7 @@ sub IndexBill {
 	$status->setAttribute('sponsor', $bill->findvalue('sponsor/@id')) if ($bill->findvalue('sponsor/@id') ne '');
 
 	foreach my $title ($bill->findnodes('titles/title[@type="popular"]')) {
-		DBInsert(DELAYED, billtitles,
+		DBInsert(billtitles,
 			session => $session,
 			type => $type,
 			number => $number,
@@ -73,7 +75,7 @@ sub IndexBill {
 			title => $title->textContent);
 	}
 	foreach my $title ($bill->findnodes('titles/title[@type="official" and @as="' . $officialtitle_as . '"]')) {
-		DBInsert(DELAYED, billtitles,
+		DBInsert(billtitles,
 			session => $session,
 			type => $type,
 			number => $number,
@@ -81,7 +83,7 @@ sub IndexBill {
 			title => $title->textContent);
 	}
 	foreach my $title ($bill->findnodes('titles/title[@type="short" and @as="' . $shorttitle_as . '"]')) {
-		DBInsert(DELAYED, billtitles,
+		DBInsert(billtitles,
 			session => $session,
 			type => $type,
 			number => $number,
@@ -112,14 +114,15 @@ sub IndexBill {
 
 	my $lastactiondate = $bill->findvalue('actions/*[position()=last()]/@datetime');
 
-	DBInsert(DELAYED, billstatus,
+	DBInsert(billstatus,
 			session => $session,
 			type => $type,
 			number => $number,
 			title => $title,
 			fulltitle => $officialtitle,
 			statusdate => DateTimeToDBString($statusdate),
-			statusxml => $status->toString
+			statusxml => $status->toString,
+			'status' => $bill->findvalue('state')
 		);
 
 	IndexBill2($session, $type, $number, $bill, "subjects/term/\@name", "crs");
@@ -136,7 +139,7 @@ sub IndexBill {
 		my $r = $XMLPARSER->parse_file($rf);
 		my $date = $r->findvalue('report/@date');
 
-		DBInsert(DELAYED, billevents,
+		DBInsert(billevents,
 				session => $session,
 				type => $type,
 				number => $number,
@@ -177,12 +180,36 @@ sub IndexBill {
 	$node->setAttribute('last-action', $lastactiondate);
 	$node->setAttribute('status', $status->nodeName);
 	$bsf->toFile($bsfn, 1) if ($holdBillSummaryFileWrite != $session);
+	
+	return;
+	# Index Bill Events
+	my @eventkeys;
+	for my $action ($bill->findnodes('actions/*')) {
+		my $line = $action->textContent;
+		my $source = "bill:$type$session-$number";
+		my $hash = md5_base64($action->toString);
+		push @eventkeys, $hash;
+		
+		# check if this event exist: if so, move on
+		my ($eid) = DBSelectFirst(events, ["id"], [DBSpecEQ(source, $source), DBSpecEQ(sourcekey, $hash)]);
+		if (defined($eid)) { next; }
+		
+		my $eid = DBInsert(events,
+			source => $source,
+			sourcekey => $hash,
+			eventdate => DateTimeToDBString($action->getAttribute('datetime')),
+			pubdate => DateToDBTimestamp(time),
+			info => join("|", "type", "action", "line", $line));
+	}
+	
+	# Delete Events No Longer In System
+	DBDelete(events, [DBSpecEQ(source, $source), DBSpecNot(DBSpecIn('sourcekey', @eventkeys))]);
 }
 
 sub IndexBill2 {
 	my ($session, $type, $number, $bill, $search, $indexname, $func) = @_;
 	foreach my $node ($bill->findnodes($search)) {
-		DBInsert(DELAYED, billindex,
+		DBInsert(billindex,
 				session => $session,
 				type => $type,
 				number => $number,
@@ -309,7 +336,7 @@ sub IndexVote {
 
 	if (!$update) {
 		DBDelete(votes, [DBSpecEQ(id, $id)]);
-		DBInsert(DELAYED, votes, %values);
+		DBInsert(votes, %values);
 	} else {
 		DBUpdate(votes, [DBSpecEQ(id, $id)], %values);
 	}
@@ -323,7 +350,7 @@ sub IndexVote {
 		my $v = $n->getAttribute('vote');
 		if ($v ne "+" && $v ne "-" && $v ne "0" && $v ne "P") { $v = "X"; }
 		if (!defined($n->getAttribute('value'))) { warn $id; }
-		DBInsert(DELAYED, people_votes, 
+		DBInsert(people_votes, 
 			personid => $n->getAttribute('id'),
 			voteid => $id,
 			date => $values{date},

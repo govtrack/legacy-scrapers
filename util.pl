@@ -130,39 +130,67 @@ $StateNamesString = join("|", @StateNames);
 	JAN => 1, FEB => 2, MAR => 3, APR => 4, MAY => 5, JUN => 6, JUL => 7, AUG => 8, SEP => 9, SEPT => 9, OCT => 10, NOV => 11, DEC => 12);
 @MonthAbbr = (Jan, Feb, Mar, Apr, May, Jun, Jul, Aug, Sep, Oct, Nov, Dec);
 
+# Congress Sessions
+open SESSIONS, "<../data/us/sessions.tsv";
+while (!eof(SESSIONS)) {
+	$_ = <SESSIONS>; chop; split(/\t/);
+	my ($cong, $sess, $st, $en) = @_;
+	if (!defined($SessionStart{$cong})) { $SessionStart{$cong} = $st; }
+	$SessionEnd{$cong} = $en;
+	push @SessionList, [$cong, $sess, $st, $en];
+}
+close SESSIONS;
+
 my @CachedProjection;
 
 1;
 		
 sub SessionFromYear {
+	if (!$_[1]) { die; } # flag that it is ok
 	my $year = shift;
 	return int(($year - 1787)/2);
 }
 sub StartOfSession {
+	die;
 	my $session = shift;
 	return timelocal(0,0,0, 1, 0, $session*2+1787);
 }
 sub EndOfSession {
+	die;
 	my $session = shift;
 	return timelocal(0,0,0, 31, 11, $session*2+1788);
 }
 sub StartOfSessionYMD {
-	my $session = shift;
-	return ($session*2+1787) . "-01-01";
+	my $cong = shift;
+	return $SessionStart{$cong};
 }
 sub EndOfSessionYMD {
-	my $session = shift;
-	return ($session*2+1788) . "-12-31";
+	my $cong = shift;
+	if (!$SessionEnd{$cong}) { return "9999-99-99"; }
+	return $SessionEnd{$cong};
 }
 sub SessionFromDate {
+	die;
 	return SessionFromYear(YearFromDate($_[0]));
 }
 sub SubSessionFromYear {
+	if (!$_[1]) { die; } # flag that it is ok
 	my $year = shift;
 	return 2 - ($year % 2);
 }
-sub SubSessionFromDate {
-	return SubSessionFromYear(YearFromDate($_[0]));
+sub SessionFromDateTime {
+	for my $rec (@SessionList) {
+		if ($_[0] ge $$rec[2] && $_[0] le $$rec[3]) { return $$rec[0]; }
+		if ($_[0] ge $$rec[2] && !$$rec[3]) { return $$rec[0]; }
+	}
+	die $_[0];
+}
+sub SubSessionFromDateTime {
+	for my $rec (@SessionList) {
+		if ($_[0] ge $$rec[2] && $_[0] le $$rec[3]) { return $$rec[1]; }
+		if ($_[0] ge $$rec[2] && !$$rec[3]) { return $$rec[1]; }
+	}
+	die $_[0];
 }
 
 
@@ -184,8 +212,10 @@ sub ParseTime {
 	my $when = shift;
 
 	if ($when =~ /^(\d+)\/(\d+)\/(\d+) (\d+):(\d+)(am|pm)$/) {
-		$when = timelocal(0,$5,$4-1 + ($6 eq "am" ? 0 : 12),
-			$2,$1-1,$3);
+		my $h = $4;
+		if ($h == 12 && $6 eq 'am') { $h = 0; }
+		elsif ($h != 12 && $6 eq 'pm') { $h += 12; }
+		$when = timelocal(0,$5,$h,$2,$1-1,$3);
 	} elsif ($when =~ /^(\d+)\/(\d+)\/(\d+)$/) {
 		$when = timelocal(0,0,0,$2,$1-1,$3);
 	} elsif ($when =~ /^(\d\d\d\d)-(\d\d)-(\d\d) (\d\d):(\d\d):(\d\d)( GMT)?/) {
@@ -340,7 +370,7 @@ sub DateToDigitString {
 	return sprintf("%04d%02d%02d", $year, $mon, $mday);
 }
 sub DBDateToDate {
-	$_[0] =~ /(\d\d\d\d)-(\d\d)-(\d\d)( (\d\d):(\d\d):(\d\d))?/;
+	if ($_[0] !~ /(\d\d\d\d)-(\d\d)-(\d\d)( (\d\d):(\d\d):(\d\d))?/) { die $_[0]; }
 	return timelocal($7,$6,$5,$3,$2-1,$1);
 }
 sub DBTimestampToDate {
@@ -387,7 +417,13 @@ sub ParseDateTime {
 		$hour = $5; $minute = $6; $ampm = $7;
 		if ($ampm =~ /p/i && $hour != 12) { $hour += 12; }
 		if ($ampm =~ /a/i && $hour == 12) { $hour -= 12; }
+	} elsif ($when =~ /^(\d+)-([A-Z]+)-(\d\d\d\d)( (\d+):(\d+)\s+(AM|PM))?$/i) {
+		$year = $3; $month = $Months{uc($2)}; $date = $1;
+		$hour = $5; $minute = $6; $ampm = $7;
+		if ($ampm =~ /p/i && $hour != 12) { $hour += 12; }
+		if ($ampm =~ /a/i && $hour == 12) { $hour -= 12; }
 	} else {
+		warn "cant parse $when";
 		return undef;
 	}
 	return FormDateTime($year, $month, $date, $hour, $minute, $second);
