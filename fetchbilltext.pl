@@ -354,42 +354,14 @@ sub FetchBillTextHTML {
 	my $type2 = $type;
 	if ($type2 eq "hr") { $type2 = "hres"; }
 		
-	my $URL = "http://thomas.loc.gov/cgi-bin/query/z?c$session:$type2$number:";
-	sleep(1);
-	my $response = $UA->get($URL);
-	if (!$response->is_success) {
-		warn "Could not fetch bill text at $URL: " .
-			$response->code . " " .
-			$response->message;
-		return;
-	}
-	my $indexhtml = $response->content;
-	$HTTP_BYTES_FETCHED += length($indexhtml);
-
-	# First, when there's only one status available, this page isn't
-	# an index but the text itself...
-
-	if ($indexhtml =~ /Printer Friendly Display/) {
-		FetchBillTextHTML2($session, $type, $number, $get_statuses[0], $indexhtml);
-		return;
-	}
-
-	# And if the page says that the text hasn't been received from GPO,
-	# that's ok.  We'll just move on.
-	if ($indexhtml =~ /has not yet been received from GPO/) {
-		return;
-	}
-
 	foreach my $status (@get_statuses) {
 		my $file = "../data/us/bills.text/$session/$type/$type$number$status.html";
 		if (-e $file) { next; }
 
-		if ($indexhtml !~ /<a href="(\/cgi-bin\/query\/D\?[^"]+)">\[[HRESCONJ\.0-9]+\.$status\]<\/a>/i) {
-			warn "Could not find link to status text for $status at $URL";
-			next;
-		}
+		# THOMAS started generating pages w/o the temp link if you don't specify Mozilla in the UA
+		my $UA = LWP::UserAgent->new(keep_alive => 2, timeout => 30, agent => "Mozilla/4.0 (GovTrack.us scraper)", from => "operations@govtrack.us");
 
-		my $URL2 = "http://thomas.loc.gov" . $1;
+		my $URL2 = "http://thomas.loc.gov/cgi-bin/query/z?c$session:$type2$number.$status:";
 		sleep(1);
 		my $response = $UA->get($URL2);
 		if (!$response->is_success) {
@@ -411,8 +383,9 @@ sub FetchBillTextHTML2 {
 	mkdir "../data/us/bills.text/$session/$type";
 
 	# move to printer friendly page
-	if ($htmlpage !~ /<a href="(\/cgi-bin\/query\/C\?[^"]+)"[^>]*>(<em>)?Printer Friendly Display/) {
-		die "Could not find the link to the printer friendly display in $session/$type$number/$status";
+	if ($htmlpage !~ /<a href="(\/cgi-bin\/query\/C\?[^"]+)"[^>]*>(<em>)?Printer Friendly/i) {
+		warn "Could not find the link to the printer friendly display in $session/$type$number/$status";
+		return;
 	}
 
 	my $URL = "http://thomas.loc.gov" . $1;
@@ -433,7 +406,7 @@ sub FetchBillTextHTML2 {
 	# chop off everything before the status line
 	# sometimes IH appears here as RIH
 	# sometimes the wrong status code shows up (EH instead of ENR)
-	if ($htmlpage !~ s/^[\w\W]*?<p>(<em>.<\/em>)?\s*([HRESCONJ\.]+ *$number R?($status|[A-Z]{2,3})(\dS)?[\n\r])/$2/i
+	if ($htmlpage !~ s/^[\w\W]*?<p>(<em>.<\/em>)?\s*([HRESCONJ\.]+ *$number R?($status|[A-Z]{2,3})(\dS)?(\/PP)?[\n\r])/$2/i
 		&& $htmlpage !~ s/^[\w\W]*?\n\s*([HRESCONJ\.]+ *$number ?R?($status|[A-Z]{2,3}|IHIS|)(\dS)?<p>[\n\r])/$1/i
 		&& ($status ne 'enr' || $htmlpage !~ s/^[\w\W]*?<p>\s*([HRESCONJ\.]+ ?$number[\n\r])/$1/i)
 		&& $htmlpage !~ s/^[\w\W]*?<p>(<h3><b>Suspend the Rules and Pass the Bill)/$1/i
@@ -563,7 +536,10 @@ sub CreateGeneratedBillTexts {
 	my $textdir = "../data/us/bills.text/$session";
 	my $cmpdir = "../data/us/bills.text.cmp/$session";
 	
-	system("mkdir -p {$textdir,$cmpdir}/{h,s,hr,sr,hj,sj,hc,sc}");
+	# This isn't working and creates weird directories probably because
+	# it's executed with sh and not bash, so the braces are treated
+	# literally.
+	#system("mkdir -p {$textdir,$cmpdir}/{h,s,hr,sr,hj,sj,hc,sc}");
 
 	opendir BILLS, "$billdir";
 	foreach my $bill (sort(readdir(BILLS))) {

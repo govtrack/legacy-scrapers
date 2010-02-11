@@ -81,18 +81,20 @@ sub DoIndex {
 	print "Indexing CR\n";
 	require "indexcr.pl";
 	MakeCRIndex($session);
+	print "Done Indexing CR\n";
 
-	if ($Weekly) {
+	#if ($Weekly) {
 		# REP STATS
 		print "RepStats\n";
 		require "repstat.pl";
 		DoRepStats($session);
+		print "Done RepStats\n";
 	
 		# SUMMARY
 		print "StatsSummary\n";
 		require "statsummary.pl";
 		DoStatsSummary($session);
-	}
+	#}
 	
 	# LUCENE
 	
@@ -106,6 +108,8 @@ sub DoIndex {
 	IndexBillsUSC($session);
 	
 	system('mysql -u root govtrack -Be "SELECT DISTINCT value FROM billindex WHERE idx = \"crs\"" > /home/govtrack/data/us/crs_terms');
+	
+	system('tail -10000000 ~/logs/access_log |perl access_log_smarts.pl');
 	
 	print `date`;
 }

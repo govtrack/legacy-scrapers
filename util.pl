@@ -412,9 +412,10 @@ sub ParseDateTime {
 		$year = $1; $month = $2; $date = $3;
 		$hour = $4; $minute = $5; $second = $6;
 		if ($7 ne "") { warn "GMT timezome ignored"; }
-	} elsif ($when =~ /^([a-zA-Z]+) (\d+), (\d\d\d\d)(,?\s+(\d+):(\d+)\s*(am|pm))?$/i) {
+	} elsif ($when =~ /^([a-zA-Z]+) (\d+), (\d\d\d\d)(,?\s+(\d+)(:(\d+))?\s*(am|pm|a\.m\.|p\.m\.))?$/i) {
 		$year = $3; $month = $Months{uc($1)}; $date = $2;
-		$hour = $5; $minute = $6; $ampm = $7;
+		$hour = $5; $minute = $7; $ampm = $8;
+		if (!$minute) { $minute = '00'; }
 		if ($ampm =~ /p/i && $hour != 12) { $hour += 12; }
 		if ($ampm =~ /a/i && $hour == 12) { $hour -= 12; }
 	} elsif ($when =~ /^(\d+)-([A-Z]+)-(\d\d\d\d)( (\d+):(\d+)\s+(AM|PM))?$/i) {

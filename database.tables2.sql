@@ -103,6 +103,7 @@ CREATE TABLE `billstatus` (
   `fulltitle` text COLLATE utf8_unicode_ci NOT NULL,
   `statusdate` datetime NOT NULL DEFAULT '0000-00-00 00:00:00',
   `statusxml` text COLLATE utf8_unicode_ci NOT NULL,
+  `status` tinytext COLLATE utf8_unicode_ci,
   PRIMARY KEY (`session`,`type`,`number`),
   KEY `fulltitle` (`fulltitle`(100)),
   KEY `statusdate` (`statusdate`)
@@ -205,10 +206,11 @@ CREATE TABLE `questions` (
   `text` text NOT NULL,
   `topic` text NOT NULL,
   `moderator` varchar(12) NOT NULL,
+  `ipaddr` varchar(16) DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `question` (`question`),
   KEY `topic` (`topic`(16))
-) ENGINE=MyISAM AUTO_INCREMENT=26498 DEFAULT CHARSET=utf8;
+) ENGINE=MyISAM AUTO_INCREMENT=27606 DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -243,4 +245,4 @@ CREATE TABLE `votes` (
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2010-01-03 18:03:39
+-- Dump completed on 2010-02-07 10:34:17

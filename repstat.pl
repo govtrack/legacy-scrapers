@@ -37,7 +37,7 @@ sub GetPeopleList {
 	my $session = shift;
 
 	# WRITE OUT PERSON DATABASE GENERAL INFO
-	my @reps = DBSelect(HASH, people, [id, firstname, middlename, lastnameenc, namemod, nickname, birthday, gender, religion, osid, bioguideid, metavidid, youtubeid], []);
+	my @reps = DBSelect(HASH, people, [id, firstname, middlename, lastnameenc, namemod, nickname, birthday, gender, religion, pvsid, osid, bioguideid, metavidid, youtubeid], []);
 
 	open PEOPLE_ALL, ">../data/us/people.xml";
 	binmode(PEOPLE_ALL, ":utf8");
@@ -96,6 +96,7 @@ sub GetPeopleList {
 			print $PEOPLE " birthday='$rep{birthday}'" if $rep{birthday} ne "";
 			print $PEOPLE " gender='$rep{gender}'" if $rep{gender} ne "";
 			print $PEOPLE " religion='$rep{religion}'" if $rep{religion} ne "";
+			print $PEOPLE " pvsid='$rep{pvsid}'" if $rep{pvsid} ne "";
 			print $PEOPLE " osid='$rep{osid}'" if $rep{osid} ne "";
 			print $PEOPLE " bioguideid='$rep{bioguideid}'" if $rep{bioguideid} ne "";
 			print $PEOPLE " metavidid='$rep{metavidid}'" if $rep{metavidid} ne "";

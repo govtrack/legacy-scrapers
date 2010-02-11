@@ -49,6 +49,7 @@ sub UpdateBills {
 		my $lastseq;
 		
 		my $offset = 0;
+		my ($seq, $bt, $bn, $rec);
 		
 		while (defined($offset)) {
 			my $url = "http://thomas.loc.gov/cgi-bin/bdquery/d?d$SESSION:$offset:./list/bss/d$SESSION$tbt.lst:\[\[o\]\]";
@@ -57,8 +58,6 @@ sub UpdateBills {
 			my ($content, $mtime) = Download($url);
 			if (!$content) { warn; return; }
 			
-			my ($seq, $bt, $bn, $rec);
-		
 			my @lines = split(/[\n\r]/, $content);
 			for my $line (@lines) {
 				if ($line =~ /(.*)<hr>/) {
@@ -102,10 +101,10 @@ sub UpdateBills {
 		if (!defined($lastseq)) {
 			warn "No $tbt bills."
 		}
-	}
 
-	if (defined($rec)) {
-		UpdateBills2($SESSION, $bt, $bn, $rec, \%changehash);
+		if (defined($rec)) {
+			UpdateBills2($SESSION, $bt, $bn, $rec, \%changehash);
+		}
 	}
 				
 	open CHANGES, ">$changefile";
@@ -358,7 +357,7 @@ sub GovGetBill {
 		my $cline = shift(@content);
 
 		if ($titlesmode == 1) {
-			if ($cline =~ /<\/ul>/) { $titlesmode = 0; next; }
+			if ($cline =~ /<\/ul>/i) { $titlesmode = 0; next; }
 			$titles .= $cline;
 			next;
 		}
@@ -788,14 +787,14 @@ sub GovGetBill {
 	}
 	$titles =~ s/[\n\r]//g;
 	$titles =~ s/<\/?i>//gi;
-	while ($titles =~ m/<li>([\w\W]*?)( as [\w ]*)?:<br>([\w\W]+?)(<p>|$)/gi) {
+	while ($titles =~ m/<li>([\w\W]*?)( as [\w ]*)?:<br\/?>([\w\W]+?)(<p>|<\/ul>|$)/gi) {
 		my $type = $1;
 		my $when = $2;
 		my $ts = $3;
 		$type =~ s/ title(\(s\))?//i;
 		$when =~ s/^ as //i;
 		
-		foreach my $t (split(/<BR>/i, $ts)) {
+		foreach my $t (split(/<BR\/?>/i, $ts)) {
 			$t =~ s/<\/?[^>]+>//g;
 			$t =~ s/&nbsp;/ /g;
 			$t =~ s/\s*\(identified by CRS\)//gi;
