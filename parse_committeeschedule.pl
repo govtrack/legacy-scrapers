@@ -34,6 +34,13 @@ sub FetchCommitteeSchedule {
 		my $parser = XML::LibXML->new();
 		$parser->keep_blanks(0);
 		$xml = $parser->parse_file($sfile);
+
+		# Scan current entries so if we detect one we already have
+		# we can preserve its post date.
+		foreach my $node ($xml->findnodes('committee-schedule/meeting[not(count(@postdate)=0)]')) {
+			my $key = $node->getAttribute('datetime') . "|" . $node->getAttribute('where') . "|" . $node->getAttribute('committee') . "|" . $node->findvalue('subject');
+			$CommitteeMeetingPostDate{$key} = $node->getAttribute('postdate');
+		}
 	}
 
 	FetchSenateCommitteeSchedule($xml);
@@ -63,7 +70,7 @@ sub FetchHouseCommitteeSchedule {
 	my $cmte;
 	my $year;
 	foreach my $line (@lines) {
-		if ($line =~ /Week of [\w\W]+ (\d\d\d\d)</) { $year = $1; }
+		if ($line =~ /Week of [\w\W]+ (\d\d\d\d)\s*</) { $year = $1; }
 	
 		if ($line =~ /CONGRESSIONAL PROGRAM AHEAD/) {
 			ClearChamberCommitteeMeetings($xml, 'h');
@@ -78,8 +85,13 @@ sub FetchHouseCommitteeSchedule {
 		#if ($line =~ /<center><strong>/) { last; }
 		if ($line =~ /Next Meeting/) { last; }
 		
-		if ($line =~ /<em>Committee on (the )?([\w\W]+?)(,|:)?<\/em>/) {
-			$cmte = $2;
+		if ($line =~ /<em>((Permanent )?Select )?Committee on (the )?([\w\W]+?)(,|:)?<\/em>/) {
+			my $typ = $1;
+			$typ =~ s/ $//;
+			
+			$cmte = $4;
+			
+			if ($typ) { $cmte .= " ($typ)"; }
 		}
 		
 		$line =~ s/, \s+ Rayburn.$//;
@@ -169,6 +181,13 @@ sub AddCommittee {
 	$subj = $xml->createElement('subject');
 	$node->appendChild($subj);
 	$subj->appendText($topic);
+
+	my $key = $node->getAttribute('datetime') . "|" . $node->getAttribute('where') . "|" . $node->getAttribute('committee') . "|" . $node->findvalue('subject');
+	if ($CommitteeMeetingPostDate{$key}) {
+		$node->setAttribute('postdate', $CommitteeMeetingPostDate{$key});
+	} else {
+		$node->setAttribute('postdate', Now());
+	}
 	
 	if (!defined($docstring)) { $docstring = $topic; }
 	while ($docstring =~ m/($BillPattern)/g) {
