@@ -166,7 +166,6 @@ sub StartOfSessionYMD {
 }
 sub EndOfSessionYMD {
 	my $cong = shift;
-	if (!$SessionEnd{$cong}) { return "9999-99-99"; }
 	return $SessionEnd{$cong};
 }
 sub SessionFromDate {

@@ -7,7 +7,7 @@ require "util.pl";
 
 $p = Parse::AccessLogEntry->new();
 
-for my $wd ('house', 'senate', 'congress', 'act', 'bill', 'resolution', 'legislation', 's.', 's.res.', 's.j.res.', 's.con.res.', 'h.r.', 'hr', 'h.res.', 'h.con.res.', 'h.j.res.', 'vote',
+for my $wd ('house', 'senate', 'congress', 'act', 'bill', 'bills', 'resolution', 'legislation', 's.', 's', 's.res.', 's.j.res.', 's.con.res.', 'h.r.', 'hr', 'h.res.', 'h.con.res.', 'h.j.res.', 'vote',
 	'of', 'what', 'sponsor', 'status', 'govtrack') {
 	$stopwords{$wd} = 1;
 }
