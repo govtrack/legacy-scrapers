@@ -394,7 +394,7 @@ sub GovGetBill {
 				$SPONSOR_ID = "none=\"true\"";
 			}
 			
-			$STATUSNOW = "<introduced date=\"$INTRODUCED\" datetime=\"$INTRODUCED2\"/>";
+			$STATUSNOW = "<introduced datetime=\"$INTRODUCED2\"/>";
 			$STATE = ['INTRODUCED', $INTRODUCED2, { sponsor => $SPONSOR_ID }];
 
 		# BACKUP TITLE
@@ -411,7 +411,7 @@ sub GovGetBill {
 			$when_old = ParseTime($when_old);
 			$when = ParseDateTime($when);
 
-			my $statusdateattrs = "date=\"$when_old\" datetime=\"$when\"";
+			my $statusdateattrs = "datetime=\"$when\"";
 			my @axndateattrs = (date => $when_old, datetime => $when);
 			
 			# skip actions about amendments
@@ -1013,7 +1013,7 @@ sub GovGetBill {
 	<state datetime="$$STATE[1]">$$STATE[0]</state>
 	<status>$STATUSNOW</status>
 
-	<introduced date="$INTRODUCED" datetime="$INTRODUCED2"/>
+	<introduced datetime="$INTRODUCED2"/>
 	<titles>
 $ti2
 	</titles>
@@ -1118,7 +1118,7 @@ sub ParseAmendment {
 			$axn = HTMLify($axn);
 			my $axnxml = ParseActionText($axn);
 
-			my $statusdateattrs = "date=\"" . ParseTime($when) . "\" datetime=\"" . ParseDateTime($when) . "\"";
+			my $statusdateattrs = "datetime=\"" . ParseDateTime($when) . "\"";
 			
 			if ($axn =~ /On agreeing to the .* amendment (\(.*\) )?(Agreed to|Failed) (without objection|by [^\.:]+|by recorded vote: (\d+) - (\d+)(, \d+ Present)? \(Roll no. (\d+)\))\./) {
 				my ($passfail, $method) = ($2, $3);
@@ -1179,7 +1179,7 @@ sub ParseAmendment {
 	$description = HTMLify(ToUTF8($description));
 	$purpose = HTMLify(ToUTF8($purpose));
 	
-	$offered = "date=\"" . ParseTime($offered) . "\" datetime=\"" . ParseDateTime($offered) . "\"";
+	$offered = "datetime=\"" . ParseDateTime($offered) . "\"";
 	if ($status eq "offered") { $statusdate = $offered; }
 
 	my $sponsorxml;

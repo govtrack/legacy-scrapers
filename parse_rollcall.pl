@@ -93,7 +93,7 @@ sub DownloadRollCallVotesAll {
 		
 		my $node = $indexxml->createElement('vote');
 		$node->setAttribute('id', firstchar($xml->findvalue('roll/@where')) . YearFromDate($xml->findvalue('roll/@when')) . '-' . $xml->findvalue('roll/@roll'));
-		$node->setAttribute('date', $xml->findvalue('roll/@when'));
+		$node->setAttribute('datetime', $xml->findvalue('roll/@datetime'));
 		$node->setAttribute('where', $xml->findvalue('roll/@where'));
 		$node->setAttribute('roll', $xml->findvalue('roll/@roll'));
 		$node->setAttribute('title', $xml->findvalue('roll/question'));
@@ -561,7 +561,7 @@ sub WriteRoll {
 	$mtime = DateToISOString($mtime);
 
 	open ROLL, ">$fn" || die "Couldn't open roll file";
-	print ROLL "<roll where=\"$where\" session=\"$SESSION\" year=\"$YEAR\" roll=\"$ROLL\" when=\"$when\"\n";
+	print ROLL "<roll where=\"$where\" session=\"$SESSION\" year=\"$YEAR\" roll=\"$ROLL\"\n";
 	print ROLL "\tdatetime=\"$datetime\" updated=\"$mtime\"\n";
 	print ROLL "\taye=\"$aye\" nay=\"$nay\" nv=\"$nv\" present=\"$pr\">\n";
 	print ROLL "\t<type>$TYPE</type>\n";
