@@ -37,9 +37,13 @@ sub FetchCommitteeSchedule {
 
 		# Scan current entries so if we detect one we already have
 		# we can preserve its post date.
-		foreach my $node ($xml->findnodes('committee-schedule/meeting[not(count(@postdate)=0)]')) {
-			my $key = $node->getAttribute('datetime') . "|" . $node->getAttribute('where') . "|" . $node->getAttribute('committee') . "|" . $node->findvalue('subject');
-			$CommitteeMeetingPostDate{$key} = $node->getAttribute('postdate');
+		foreach my $node ($xml->findnodes('committee-schedule/meeting')) {
+			if ($node->getAttribute('postdate') eq '') {
+				$node->setAttribute('postdate', Now());
+			} else {
+				my $key = $node->getAttribute('datetime') . "|" . $node->getAttribute('where') . "|" . $node->getAttribute('committee') . "|" . $node->findvalue('subject');
+				$CommitteeMeetingPostDate{$key} = $node->getAttribute('postdate');
+			}
 		}
 	}
 
