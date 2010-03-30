@@ -251,13 +251,13 @@ sub IndexVote {
 	
 	my $result;
 	if ($xml->findvalue('count(voter[not(@vote="+" or @vote="-" or @vote="0" or @vote="P")])') == 0) {
-		$result = $xml->findvalue('result') . " ";
+		if ($xml->findvalue('result') ne 'unknown') { $result = $xml->findvalue('result') . " "; }
 		if ($xml->findvalue('@aye') + $xml->findvalue('@nay') > 0) {
 			$result .= $xml->findvalue('@aye') . '-' . $xml->findvalue('@nay');
 			if ($xml->findvalue('@nv') + $xml->findvalue('@present') > 0) {
 				$result .= ', ' . ($xml->findvalue('@nv') + $xml->findvalue('@present')) . ' not voting';
 			}
-			if ($xml->findvalue('required') ne '1/2') {
+			if ($xml->findvalue('required') ne '1/2' && $xml->findvalue('required') ne 'unknown') {
 				$result .= ' (' . $xml->findvalue('required') . ' required)';
 			}
 		} else {
@@ -274,9 +274,14 @@ sub IndexVote {
 	}
 	
 	# Basic information to put into the record.
+	my $dbid = $id;
+	if ($session <= 100) {
+		if ($id !~ /^([hs])(\d+)$/) { die $id; }
+		$dbid = "$1$session-$2";
+	}
 	
 	my %values = (
-		id => $id,
+		id => $dbid,
 		date => DateTimeToDBString($xml->findvalue('@datetime')),
 		result => $result);
 	
@@ -335,24 +340,24 @@ sub IndexVote {
 	}
 
 	if (!$update) {
-		DBDelete(votes, [DBSpecEQ(id, $id)]);
+		DBDelete(votes, [DBSpecEQ(id, $dbid)]);
 		DBInsert(votes, %values);
 	} else {
-		DBUpdate(votes, [DBSpecEQ(id, $id)], %values);
+		DBUpdate(votes, [DBSpecEQ(id, $dbid)], %values);
 	}
 
 	if ($maintableonly) { return; }
 
-	DBDelete(people_votes, [DBSpecEQ(voteid, $id)]);
+	DBDelete(people_votes, [DBSpecEQ(voteid, $dbid)]);
 
 	foreach my $n ($xml->findnodes('voter')) {
 		if ($n->getAttribute('id') == 0) { next; }
 		my $v = $n->getAttribute('vote');
 		if ($v ne "+" && $v ne "-" && $v ne "0" && $v ne "P") { $v = "X"; }
-		if (!defined($n->getAttribute('value'))) { warn $id; }
+		if (!defined($n->getAttribute('value'))) { warn $dbid; }
 		DBInsert(people_votes, 
 			personid => $n->getAttribute('id'),
-			voteid => $id,
+			voteid => $dbid,
 			date => $values{date},
 			vote => $v,
 			displayas => $n->getAttribute('value')

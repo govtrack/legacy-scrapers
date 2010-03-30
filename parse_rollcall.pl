@@ -92,7 +92,7 @@ sub DownloadRollCallVotesAll {
 		my $xml = $XMLPARSER->parse_file("../data/us/$SESSION/rolls/$vote");
 		
 		my $node = $indexxml->createElement('vote');
-		$node->setAttribute('id', firstchar($xml->findvalue('roll/@where')) . YearFromDate($xml->findvalue('roll/@when')) . '-' . $xml->findvalue('roll/@roll'));
+		$node->setAttribute('id', firstchar($xml->findvalue('roll/@where')) . YearFromDateTime($xml->findvalue('roll/@datetime')) . '-' . $xml->findvalue('roll/@roll'));
 		$node->setAttribute('datetime', $xml->findvalue('roll/@datetime'));
 		$node->setAttribute('where', $xml->findvalue('roll/@where'));
 		$node->setAttribute('roll', $xml->findvalue('roll/@roll'));
@@ -112,7 +112,7 @@ sub DownloadRollCallVotesAll {
 		$node->setAttribute('counts', $counts);
 
 		push @nodes, $node;
-		$votenodes{$node} = $xml->findvalue('roll/@when');
+		$votenodes{$node} = $xml->findvalue('roll/@datetime');
 
 		my ($bill) = $xml->findnodes('roll/bill');
 		if ($bill) {
@@ -139,7 +139,7 @@ sub DownloadRollCallVotesAll {
 			};
 		}
 	}
-	@nodes = sort({ $votenodes{$b} <=> $votenodes{$a}} @nodes);
+	@nodes = sort({ $votenodes{$a} cmp $votenodes{$b}} @nodes);
 	foreach my $node (@nodes) {
 		$indexxml->documentElement->appendChild($node);
 	}
@@ -357,7 +357,7 @@ sub GetSenateVote {
 		push @{$votes{$vote}}, $id;
 	}
 
-	WriteRoll($fn, $mtime, "senate", $ROLL, $WHEN, $DATETIME, \%votes, $TYPE, $QUESTION, $REQUIRED, $RESULT, $BILL, $AMENDMENT);
+	WriteRoll($fn, $mtime, "senate", $ROLL, $DATETIME, \%votes, $TYPE, $QUESTION, $REQUIRED, $RESULT, $BILL, $AMENDMENT, "senate.gov");
 
 	return 1;
 }
@@ -520,7 +520,7 @@ sub GetHouseVote {
 		push @{$votes{$vote}}, $id;
 	}
 
-	WriteRoll($fn, $mtime, "house", $ROLL, $when, $datetime, \%votes, $type, $question, $required, $result, $bill, $amendment);
+	WriteRoll($fn, $mtime, "house", $ROLL, $datetime, \%votes, $type, $question, $required, $result, $bill, $amendment, "house.gov");
 	return 1;
 }
 
@@ -529,7 +529,6 @@ sub WriteRoll {
 	my $mtime = shift;
 	my $where = shift;
 	my $ROLL = shift;
-	my $when = shift;
 	my $datetime = shift;
 	my $rvotes = shift;
 	my $TYPE = shift;
@@ -538,9 +537,10 @@ sub WriteRoll {
 	my $RESULT = shift;
 	my $BILL = shift;
 	my $AMENDMENT = shift;
+	my $source = shift;
 
 	my $SESSION = SessionFromDateTime($datetime);
-	my $YEAR = YearFromDate($when);
+	my $YEAR = YearFromDateTime($datetime);
 
 	my %votes = %{ $rvotes };
 
@@ -561,7 +561,7 @@ sub WriteRoll {
 	$mtime = DateToISOString($mtime);
 
 	open ROLL, ">$fn" || die "Couldn't open roll file";
-	print ROLL "<roll where=\"$where\" session=\"$SESSION\" year=\"$YEAR\" roll=\"$ROLL\"\n";
+	print ROLL "<roll where=\"$where\" session=\"$SESSION\" year=\"$YEAR\" roll=\"$ROLL\" source=\"$source\"\n";
 	print ROLL "\tdatetime=\"$datetime\" updated=\"$mtime\"\n";
 	print ROLL "\taye=\"$aye\" nay=\"$nay\" nv=\"$nv\" present=\"$pr\">\n";
 	print ROLL "\t<type>$TYPE</type>\n";
@@ -613,7 +613,7 @@ sub WriteRoll {
 			} else {
 				print ROLL "id=\"$id\" ";
 				if (!$PersonSD{$id}) {
-					my ($state, $dist) = DBSelectFirst(people_roles, [state, district], [DBSpecEQ('personid', $id), DBSpecEQ('type', $where eq 'house' ? 'rep' : 'sen'), PERSON_ROLE_THEN(DateToDBString($when))]);
+					my ($state, $dist) = DBSelectFirst(people_roles, [state, district], [DBSpecEQ('personid', $id), DBSpecEQ('type', $where eq 'house' ? 'rep' : 'sen'), PERSON_ROLE_THEN(DateTimeToDBString($datetime))]);
 					$sdattr = "state=\"$state\"";
 					if ($where eq 'house') { $sdattr .= " district=\"$dist\""; }
 					$PersonSD{$id} = $sdattr; # fortunately can't really change within a session
@@ -628,9 +628,13 @@ sub WriteRoll {
 	print ROLL "</roll>\n";
 	close ROLL;
 	
-	if ($fn !~ /\/(\w\d\d\d\d\-\d+)\.xml$/) { die $fn; }
-	my $id = $1;
-	if (!$ENV{NOMAP} && !$SkipMaps) { MakeVoteMap($id); }
+	my $id;
+	if ($fn =~ /\/([hs](\d+-)?\d+)\.xml$/) {
+		$id = $1;
+	} else {
+		die $fn;
+	}
+	if (!$ENV{NOMAP} && !$SkipMaps) { MakeVoteMap($SESSION, $id); }
 
 	if (defined($BILL)) {
 		push @referencedbills, $BILL;
@@ -644,12 +648,6 @@ sub WriteRoll {
 
 ################################
 
-sub RemapVote {
-	GovDBOpen();
-	MakeVoteMap($ARGV[1]);
-	DBClose();
-}
-
 sub RemapVotes {
 	GovDBOpen();
 	
@@ -662,7 +660,7 @@ sub RemapVotes {
 			my $f2 = "../data/us/$session/gen.rolls-cart/$f.png";
 			if ($skipifexists && -e $f2) { next; }
 			#if (-e $f2 && fileage($f2) < 1) { next; }
-			MakeVoteMap($f);
+			MakeVoteMap($session, $f);
 		}
 	}
 	closedir D;
@@ -671,12 +669,9 @@ sub RemapVotes {
 }
 
 sub MakeVoteMap {
+	my $session = shift;
 	my $votefile = shift;
 
-	if ($votefile !~ /^\w(\d\d\d\d)-\d+$/) { die $votefile; }
-	my $year = $1;
-	my $session = SessionFromYear($year, 1);
-	
 	if ($session < 109) { return; }
 
 	my $ttFontName = 'Arial';
@@ -698,7 +693,7 @@ sub MakeVoteMap {
 	my $reptype;
 	if ($where eq "house") { $reptype = "rep"; } else { $reptype = "sen"; }
 
-	my $when = DateToDBString($votexml->getAttribute("when"));
+	my $when = DateTimeToDBString($votexml->getAttribute("datetime"));
 	my $PERSON_ROLE_NOW = "(startdate <= '$when' and enddate >= '$when')";
 	
 	# CORRELATION WITH PARTY

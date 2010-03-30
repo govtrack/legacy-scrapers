@@ -360,14 +360,6 @@ sub DateToDBTimestamp {
 	$mon++;
 	return sprintf("%04d%02d%02d%02d%02d%02d", $year, $mon, $mday, $hour, $min, $sec);
 }
-sub DateToDigitString {
-	my $date = shift;
-	my ($sec,$min,$hour,$mday,$mon,$year,$wday,$yday,$isdst)
-		= localtime($date);
-	$year += 1900;
-	$mon++;
-	return sprintf("%04d%02d%02d", $year, $mon, $mday);
-}
 sub DBDateToDate {
 	if ($_[0] !~ /(\d\d\d\d)-(\d\d)-(\d\d)( (\d\d):(\d\d):(\d\d))?/) { die $_[0]; }
 	return timelocal($7,$6,$5,$3,$2-1,$1);
@@ -465,6 +457,10 @@ sub DateTimeToDate {
 	$year -= 1900;
 	$month--;
 	return timelocal($second, $minute, $hour, $date, $month, $year);
+}
+sub DateTimeToDigitString {
+	my ($year, $month, $date, $hour, $minute, $second) = ParseDateTimeValue($_[0]);
+	return sprintf("%04d%02d%02d", $year, $month, $date);
 }
 	
 sub NodeListUnion {

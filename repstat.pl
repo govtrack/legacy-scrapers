@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 
-# to regenerate all stats:
-# for x in {101..111}; do echo $x; perl repstat.pl REPSTATS $x; done
+# to regenerate all stats and images:
+# for x in {1..111}; do echo $x; perl repstat.pl REPSTATS $x; perl repstat-vimg.pl $x; done
 
 require "general.pl";
 require "db.pl";
@@ -141,9 +141,12 @@ sub GetPeopleList {
 				if ($cparent ne "") {
 					$csname = $cname;
 					($cname) = DBSelectFirst(committees, [thomasname], ["id='$cparent'"]);
+
+					if ($cid !~ /^([A-Z]+)(\d+)$/) { die; }
+					$cid = "$1-$2";
 				}
 				foreach my $x ($cname, $csname) { $x = htmlify($x, 1); }
-				print $PEOPLE "\t\t<committee-assignment";
+				print $PEOPLE "\t\t<committee-assignment code=\"$cid\"";
 				print $PEOPLE " committee='$cname'";
 				print $PEOPLE " subcommittee='$csname'" if ($csname ne "");
 				print $PEOPLE " role='$role'" if ($role ne "");

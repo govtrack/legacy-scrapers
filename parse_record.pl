@@ -1,3 +1,4 @@
+use Carp;
 use Time::Local;
 use LWP::UserAgent;
 use XML::LibXML;
@@ -6,7 +7,7 @@ require "general.pl";
 require "persondb.pl";
 require "db.pl";
 
-my $debug = 1;
+$SIG{__DIE__} = sub { &Carp::croak };
 
 if ($ARGV[0] eq "PARSE_RECORD") { &DoCommandLine; }
 if ($ARGV[0] eq "PARSE_RECORD2") { &DoCommandLine2; }
@@ -18,7 +19,7 @@ if ($ARGV[0] eq "PARSE_RECORD2") { &DoCommandLine2; }
 sub DoCommandLine {
 	GovDBOpen();
 	$ONLYGETRECORDORD = $ARGV[3];
-	GetCR($ARGV[1], ParseTime($ARGV[2]));
+	GetCR($ARGV[1], ParseDateTime($ARGV[2]));
 	DBClose();
 }
 sub DoCommandLine2 {
@@ -30,7 +31,7 @@ sub DoCommandLine2 {
 	for (my $m = $m1; $m <= $m2; $m++) {
 	for (my $d = 1; $d <= 31; $d++) {
 		my $t = 0;
-		eval { $t = ParseTime("$m/$d/$y"); };
+		eval { $t = ParseDateTime("$m/$d/$y"); };
 		if ($t == 0) { next; }
 		GetCR('s', $t, $skipifexists);
 		GetCR('h', $t, $skipifexists);
@@ -44,8 +45,8 @@ sub GetCR {
 	my $DATE = shift;
 	my $skipifexists = shift;
 	
-	my $session = SessionFromYear(YearFromDate($DATE), 1);
-	my $digitdate = DateToDigitString($DATE);
+	my $session = SessionFromYear(YearFromDateTime($DATE), 1);
+	my $digitdate = DateTimeToDigitString($DATE);
 
 	my $url = "http://thomas.loc.gov/cgi-bin/query/B?r$session:\@FIELD(FLD003+$WHERE)+\@FIELD(DDATE+$digitdate)";
 	
@@ -101,7 +102,8 @@ sub GetCR2 {
 	if (!$content) { return; }
 	
 	if ($content !~ /<a href="([^\"]+?)"><em>Printer Friendly Display<\/em><\/a>/i) {
-		die "Congressional record has no printer friendly page at $url";
+		warn "Congressional record has no printer friendly page at http://thomas.loc.gov$URL";
+		return;
 	}
 	
 	$URL = $1;
@@ -142,7 +144,7 @@ sub GetCR2 {
 	$TITLE =~ s/\n//g;
 
 	$X->documentElement->setAttribute('where', $WHERE);
-	$X->documentElement->setAttribute('when', $DATE);
+	$X->documentElement->setAttribute('datetime', $DATE);
 	$X->documentElement->setAttribute('ordinal', $ORDINAL);
 	$X->documentElement->setAttribute('title', ToUTF8($TITLE, 1));
 	
@@ -218,12 +220,19 @@ sub GetCR2 {
 			$speakergender = undef;
 			if ($speakertitle eq "Mr.") { $speakergender = "m"; }
 			if ($speakertitle eq "Mrs." || $speakertitle eq "Ms.") { $speakergender = "f"; }
+			
+			if ("$speakertitle $speakername of '$ofwhere'" eq "Ms. LEE, JACKSON of 'Texas'") {
+				$speakername = "JACKSON-LEE";
+			}
+			if ("$speakertitle $speakername of '$ofwhere'" eq "Ms. SCHULTZ, WASSERMAN of ''") {
+				$speakername = "WASSERMAN-SCHULTZ";
+			}
 
 			$speaking = PersonDBGetID(
 				title => $speakertype,
 				name => $speakername,
 				state => $StatePrefix{uc($ofwhere)}, 
-				when => $DATE,
+				when => DateTimeToDate($DATE),
 				gender => $speakergender);
 			if (!defined($speaking)) { $speaking = 0; print "Unknown person in #$ORDINAL: $speakertitle $speakername of '$ofwhere'\n"; }
 
@@ -278,7 +287,10 @@ sub GetCR2 {
 	
 	# "</record>\n";
 
-	$X->toFile($fn, 1);
+	eval {
+		$X->toFile($fn, 1);
+	};
+	if ($@) { warn "$fn: $@"; }
 	
 	if ($spokencount < 1) { unlink $fn; }
 }
@@ -323,7 +335,10 @@ sub TextOfAmendments {
 		$txt .= $line . "\n";
 		if ($islast) { last; }
 	}
-	WriteAmendmentText($w, $n, $txt, $session, $where, $date);
+	eval {
+		WriteAmendmentText($w, $n, $txt, $session, $where, $date);
+	};
+	if ($@) { warn "amendment $w$n: $@"; }
 }
 
 sub WriteAmendmentText {
@@ -333,10 +348,13 @@ sub WriteAmendmentText {
 	my $loc;
 	if ($where =~ /^h/i) { $loc = "House"; } else { $loc = "Senate"; }
 	$txt .= "(As printed in the Congressional Record for the $loc on " .
-		DateToString($date) . ".)\n";
+		DateToString(DateTimeToDate($date)) . ".)\n";
 
 	$w = lc($w);
+	$txt = ToUTF8($txt, 1);
+	
 	open TXT, ">../data/us/$session/bills.amdt/$w$n.txt";
+	binmode(TXT, "utf8");
 	print TXT $txt;
 	close TXT;
 }

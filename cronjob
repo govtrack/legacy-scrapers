@@ -57,9 +57,9 @@ sub DoEarlyGather {
 sub DoNoonGather {
 	DoEarlyGather(1);
 
-	require "parse_record.pl";
-	GetCR('s', $retdate, 1);
-	GetCR('h', $retdate, 1);
+	#require "parse_record.pl";
+	#GetCR('s', $retdate, 1);
+	#GetCR('h', $retdate, 1);
 
 	require "fetchcbo.pl";
 	GetCBO();
@@ -70,7 +70,7 @@ sub DoNoonGather {
 	#require "technorati.pl";
 	#ScanTechnorati();
 	
-	system("perl googlesitemap.pl");
+	#system("perl googlesitemap.pl");
 	
 	#system("perl congresspedia.pl > /dev/null");
 }

@@ -45,6 +45,8 @@ sub UpdateBills {
 	}
 	close CHANGES;
 	
+	my $SESSION2 = sprintf("%03d", $SESSION);
+	
 	for my $tbt ('HC', 'HE', 'HJ', 'HR', 'HZ', 'SC', 'SE', 'SJ', 'SN', 'SP') {
 		my $lastseq;
 		
@@ -52,7 +54,7 @@ sub UpdateBills {
 		my ($seq, $bt, $bn, $rec);
 		
 		while (defined($offset)) {
-			my $url = "http://thomas.loc.gov/cgi-bin/bdquery/d?d$SESSION:$offset:./list/bss/d$SESSION$tbt.lst:\[\[o\]\]";
+			my $url = "http://thomas.loc.gov/cgi-bin/bdquery/d?d$SESSION2:$offset:./list/bss/d$SESSION2$tbt.lst:\[\[o\]\]";
 			undef $offset;
 			
 			my ($content, $mtime) = Download($url);
@@ -71,7 +73,7 @@ sub UpdateBills {
 					undef $rec;
 				}
 				
-				if ($line =~ m|<B>\s*(\d+)\.</B> <a href="/cgi-bin/bdquery/D\?d$SESSION:\d+:./list/bss/d$SESSION$tbt.lst::">\s*$BillAmendmentPattern\s*</A>|i) {
+				if ($line =~ m|<B>\s*(\d+)\.</B> <a href="/cgi-bin/bdquery/D\?d$SESSION2:\d+:./list/bss/d$SESSION2$tbt.lst::">\s*$BillAmendmentPattern\s*</A>|i) {
 					if (defined($rec)) {
 						UpdateBills2($SESSION, $bt, $bn, $rec, \%changehash);
 					}
@@ -92,7 +94,7 @@ sub UpdateBills {
 					$rec .= $line;
 				}
 				
-				if ($line =~ m|<a href="/cgi-bin/bdquery/d\?d$SESSION:(\d+)[^"]*">NEXT PAGE</a>|i) {
+				if ($line =~ m|<a href="/cgi-bin/bdquery/d\?d$SESSION2:(\d+)[^"]*">NEXT PAGE</a>|i) {
 					$offset = $1;
 				}
 			}
@@ -290,9 +292,11 @@ sub GovGetBill {
 	
 	if ($BILLNUMBER eq "") { die "No bill number given."; }
 
+	my $SESSION2 = sprintf("%03d", $SESSION);
+
 	my $xfn = "../data/us/$SESSION/bills/$BILLTYPE$BILLNUMBER.xml";
 	if ($SKIPIFEXISTS && -e $xfn) { return; }
-	#if ($ENV{SKIP_RECENT} && -M $xfn < 4) { return; }
+	if ($ENV{SKIP_RECENT} && -M $xfn < 4) { return; }
 	if ($ENV{SKIP_RECENT}) {
 		open F, $xfn;
 		my $line = <F>;
@@ -308,7 +312,7 @@ sub GovGetBill {
 	if ($BILLTYPE2 eq "hr") { $BILLTYPE2 = "hres"; }
 
 	my $SERVER = "thomas.loc.gov";	
-	my $PATH = "/cgi-bin/bdquery/z?d$SESSION:$BILLTYPE2$BILLNUMBER:\@\@\@L";
+	my $PATH = "/cgi-bin/bdquery/z?d$SESSION2:$BILLTYPE2$BILLNUMBER:\@\@\@L";
 	my $URL = "http://$SERVER$PATH";
 
 	my ($content, $mtime) = Download($URL);
@@ -364,10 +368,10 @@ sub GovGetBill {
 
 		# TODO: Some bills (109th's debt ceiling limit) have No Sponsor.
 		# SPONSOR
-		if ($cline =~ /<br \/><b>Sponsor: <\/b>(No Sponsor|<a [^>]+>([\w\W]*)<\/a>\s+\[(\w\w(-\d+)?)\])/i) {
-			my $SPONSOR_TEXT = $1;
-			$SPONSOR_NAME = $2;
-			$SPONSOR_STATE = $3;
+		if ($cline =~ /(<br \/>)?<b>Sponsor: <\/b>(No Sponsor|<a [^>]+>([\w\W]*)<\/a>\s+\[(\w\w(-\d+)?)\])/i) {
+			my $SPONSOR_TEXT = $2;
+			$SPONSOR_NAME = $3;
+			$SPONSOR_STATE = $4;
 
 			while (scalar(@content) > 0) {
 				my $cline = shift(@content);
@@ -476,7 +480,7 @@ sub GovGetBill {
 
 				push @ACTIONS, [$action_state, 2, $votenode, $what, { @axndateattrs, where => 'h', type => $votetype, result => $passfail, how => $how, roll => $roll, suspension => $suspension } ];
 				
-				if ($roll != 0) { GetHouseVote(YearFromDateTime($when), $roll, 1); }
+				if ($roll != 0 && YearFromDateTime($when) >= 1990) { GetHouseVote(YearFromDateTime($when), $roll, 1); }
 
 				# Funny thing: on a motion to suspend the rules and 
 				# pass, if the motion fails, the bill may still yet 
@@ -596,7 +600,7 @@ sub GovGetBill {
 
 				push @ACTIONS, [$action_state, 2, $votenode, $what, { @axndateattrs, where => 's', type => $votetype, result => $passfail, how => $how, roll => $roll } ];
 				
-				if ($roll != 0) { GetSenateVote($SESSION, SubSessionFromDateTime($when), YearFromDateTime($when), $roll, 1); }
+				if ($roll != 0 && $SESSION >= 101) { GetSenateVote($SESSION, SubSessionFromDateTime($when), YearFromDateTime($when), $roll, 1); }
 
 				if ($votenode eq 'vote') {
 				if ($votetype ne 'override') {
@@ -737,12 +741,12 @@ sub GovGetBill {
 			}
 
 		# COSPONSORS
-		} elsif ($cline =~ /<br ?\/><a href=[^>]+>(Rep|Sen) ([\w\W]+)<\/a> \[([A-Z\d\-]+)\] - (\d\d?\/\d\d?\/\d\d\d\d)(\(withdrawn - (\d\d?\/\d\d?\/\d\d\d\d)\))?/i) {
-			my $t = $1;
-			my $n = $2;
-			my $s = $3;
-			my $d = $4;
-			my $withdrawndate = $6;
+		} elsif ($cline =~ /(<br ?\/>)?<a href=[^>]+>(Rep|Sen) ([\w\W]+)<\/a> \[([A-Z\d\-]+)\] - (\d\d?\/\d\d?\/\d\d\d\d)(\(withdrawn - (\d\d?\/\d\d?\/\d\d\d\d)\))?/i) {
+			my $t = $2;
+			my $n = $3;
+			my $s = $4;
+			my $d = $5;
+			my $withdrawndate = $7;
 			
 			my $i = PersonDBGetID(title => $t, name => $n, state => $s, when => ParseTime($d));
 			if (!defined($i)) {
@@ -830,7 +834,7 @@ sub GovGetBill {
 
 	# GET COMMITTEES
 
-	$URL = "http://thomas.loc.gov/cgi-bin/bdquery/z?d$SESSION:$BILLTYPE2$BILLNUMBER:\@\@\@C";
+	$URL = "http://thomas.loc.gov/cgi-bin/bdquery/z?d$SESSION2:$BILLTYPE2$BILLNUMBER:\@\@\@C";
 	($content, $mtime2) = Download($URL);
 	if (!$content) { return; }
 	@content = split(/[\n\r]+/, $content);
@@ -852,7 +856,7 @@ sub GovGetBill {
 
 	# GET CRS TERMS
 
-	$URL = "http://thomas.loc.gov/cgi-bin/bdquery/z?d$SESSION:$BILLTYPE2$BILLNUMBER:\@\@\@J";
+	$URL = "http://thomas.loc.gov/cgi-bin/bdquery/z?d$SESSION2:$BILLTYPE2$BILLNUMBER:\@\@\@J";
 	($content, $mtime2) = Download($URL);
 	if (!$content) { return; }
 	@content = split(/[\n\r]+/, $content);
@@ -868,7 +872,7 @@ sub GovGetBill {
 
 	# GET RELATED BILLS
 
-	$URL = "http://thomas.loc.gov/cgi-bin/bdquery/z?d$SESSION:$BILLTYPE2$BILLNUMBER:\@\@\@K";
+	$URL = "http://thomas.loc.gov/cgi-bin/bdquery/z?d$SESSION2:$BILLTYPE2$BILLNUMBER:\@\@\@K";
 	($content, $mtime2) = Download($URL);
 	if (!$content) { return; }
 	@content = split(/[\n\r]+/, $content);
@@ -897,7 +901,7 @@ sub GovGetBill {
 
 	# GET AMENDMENTS
 
-	$URL = "http://thomas.loc.gov/cgi-bin/bdquery/z?d$SESSION:$BILLTYPE2$BILLNUMBER:\@\@\@A";
+	$URL = "http://thomas.loc.gov/cgi-bin/bdquery/z?d$SESSION2:$BILLTYPE2$BILLNUMBER:\@\@\@A";
 	($content, $mtime2) = Download($URL);
 	if (!$content) { return; }
 	@content = split(/[\n\r]+/, $content);
@@ -962,12 +966,34 @@ sub GovGetBill {
 		}
 	}
 	$act2 = join("\n", @act);
-
+	
+	# Load master committee XML file.
+	if (!$committee_xml_master) { $committee_xml_master = $XMLPARSER->parse_file('../data/us/committees.xml'); }
 	my @com;
 	my $com2;
 	foreach $c (@COMMITTEES) {
 		my @cc = @{ $c };
-		push @com, "\t\t<committee name=\"$cc[0]\" subcommittee=\"$cc[1]\" activity=\"$cc[2]\" />";
+		my $ccode;
+		my ($cnode) = $committee_xml_master->findnodes("committees/committee[thomas-names/name[\@session=$SESSION] = \"$cc[0]\"]");
+		if (!$cnode) {
+			warn "Committee not found: $cc[0]";
+		} else {
+			if ($cc[1] eq '') {
+				$ccode = $cnode->getAttribute('code');
+			} else {
+				my ($csnode) = $cnode->findnodes("subcommittee[thomas-names/name[\@session=$SESSION] = \"$cc[1]\"]");
+				if (!$csnode) {
+					warn "Subcommittee not found: $cc[0] -- $cc[1]";
+				} else {
+					$ccode = $cnode->getAttribute('code') . '-' . $csnode->getAttribute('code');
+				}
+			}
+		}
+		my $s = "";
+		if ($cc[1] ne "") {
+			$s = " subcommittee=\"$cc[1]\"";
+		}
+		push @com, "\t\t<committee code=\"$ccode\" name=\"$cc[0]\"$s activity=\"$cc[2]\" />";
 	}
 	$com2 = join("\n", @com);
 
@@ -1066,7 +1092,9 @@ sub ParseAmendment {
 
 	print "Fetching amendment $session:$chamber$number\n" if (!$OUTPUT_ERRORS_ONLY);
 
-	my $URL = "http://thomas.loc.gov/cgi-bin/bdquery/z?d$session:$chamber$char$number:";
+	my $session2 = sprintf("%03d", $session);
+
+	my $URL = "http://thomas.loc.gov/cgi-bin/bdquery/z?d$session2:$chamber$char$number:";
 
 	my ($content, $mtime) = Download($URL);
 	if (!$content) { return; }
@@ -1090,15 +1118,15 @@ sub ParseAmendment {
 	foreach my $line (split(/\n/, $content)) {
 		$line =~ s/<\/?font[^>]*>//g;
 	
-		if ($line =~ /<br \/>Amends: [^>]*>\s*$BillPattern/i) {
-			$billtype = $BillTypeMap{lc($1)};
-			$billnumber = $2;
+		if ($line =~ /(<br \/>)?Amends: [^>]*>\s*$BillPattern/i) {
+			$billtype = $BillTypeMap{lc($2)};
+			$billnumber = $3;
 		} elsif ($line =~ /^ \(A(\d\d\d)\)/) {
 			$sequence = int($1);
-		} elsif ($line =~ /<br \/>Sponsor: <a [^>]*>(Rep|Sen) ([^<]*)<\/a> \[(\w\w(-\d+)?)\]/) {
-			($sptitle, $spname, $spstate) = ($1, $2, $3);
-		} elsif ($line =~ /<br \/>Sponsor: <a [^>]*>((House|Senate) [^<]*)<\/a>/) {
-			($spcommittee) = ($1);
+		} elsif ($line =~ /(<br \/>)?Sponsor: <a [^>]*>(Rep|Sen) ([^<]*)<\/a> \[(\w\w(-\d+)?)\]/) {
+			($sptitle, $spname, $spstate) = ($2, $3, $4);
+		} elsif ($line =~ /(<br \/>)?Sponsor: <a [^>]*>((House|Senate) [^<]*)<\/a>/) {
+			($spcommittee) = ($2);
 		} elsif ($line =~ /\((submitted|offered) (\d+\/\d+\/\d\d\d\d)\)/) {
 			$offered = $2;
 			if ($sptitle eq "") { next; }
@@ -1108,9 +1136,9 @@ sub ParseAmendment {
 				state => $spstate,
 				when => ParseTime($offered));
 			if (!defined($sponsor)) { warn "parsing amendment $session:$chamber$number: Unknown sponsor: $sptitle, $spname, $spstate (bill not fetched)"; return; }
-		} elsif ($line =~ s/^<p>AMENDMENT DESCRIPTION:<br \/>//) {
+		} elsif ($line =~ s/^<p>AMENDMENT DESCRIPTION:(<br \/>)?//) {
 			$description = $line;
-		} elsif ($line =~ s/^<p>AMENDMENT PURPOSE:<br \/>//) {
+		} elsif ($line =~ s/^<p>AMENDMENT PURPOSE:(<br \/>)?//) {
 			$purpose = $line;
 			if ($description eq "") { $description = $purpose; }
 		} elsif ($line =~ /<dt><strong>(\d+\/\d+\/\d\d\d\d( \d+:\d\d(am|pm))?):<\/strong><dd>([\w\W]*)/) {
