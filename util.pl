@@ -178,6 +178,7 @@ sub SubSessionFromYear {
 	return 2 - ($year % 2);
 }
 sub SessionFromDateTime {
+	$_[0] =~ s/T.*//i; # remove time part before date comparison
 	for my $rec (@SessionList) {
 		if ($_[0] ge $$rec[2] && $_[0] le $$rec[3]) { return $$rec[0]; }
 		if ($_[0] ge $$rec[2] && !$$rec[3]) { return $$rec[0]; }
@@ -185,6 +186,7 @@ sub SessionFromDateTime {
 	die $_[0];
 }
 sub SubSessionFromDateTime {
+	$_[0] =~ s/T.*//i; # remove time part before date comparison
 	for my $rec (@SessionList) {
 		if ($_[0] ge $$rec[2] && $_[0] le $$rec[3]) { return $$rec[1]; }
 		if ($_[0] ge $$rec[2] && !$$rec[3]) { return $$rec[1]; }
