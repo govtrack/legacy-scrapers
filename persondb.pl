@@ -51,7 +51,10 @@ my @ShortNames = (
 	[charlie, charles],
 	[sam, samuel],
 	[herb, herbert],
-	[max, maxwell]
+	[max, maxwell],
+	[cathy, catherine],
+	[ray, raymond],
+	[ed, edwin],
 	);
 
 if ($ARGV[0] eq "QUERY") {
@@ -108,6 +111,8 @@ sub PersonDBGetID {
 	$name =~ s/``/"/g;
 	$name =~ s/''/"/g;
 	$name =~ s/,"/",/;
+	
+	$name =~ s/ \(Mrs\. .*\)//; # hc99-359: Unknown person: Rep, Long, Cathy (Mrs. Gillis)
 	
 	my $lastname;
 	my @fnames;

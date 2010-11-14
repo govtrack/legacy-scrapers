@@ -275,14 +275,16 @@ sub IndexVote {
 	
 	# Basic information to put into the record.
 	my $dbid = $id;
-	if ($session <= 100) {
-		if ($id !~ /^([hs])(\d+)$/) { die $id; }
-		$dbid = "$1$session-$2";
+	if ($id !~ /^([hs])(.*)-(\d+)$/) { die $id; }
+	my $seq = $3;
+	if (length($2) != 4) { # if the subsession is not a year, then change the id to include session number
+		$dbid = "$1${session}_$2-$3";
 	}
 	
 	my %values = (
 		id => $dbid,
 		date => DateTimeToDBString($xml->findvalue('@datetime')),
+		seq => $seq,
 		result => $result);
 	
 	# Make a nicer description.

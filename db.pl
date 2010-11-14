@@ -5,7 +5,7 @@ use DBSQL;
 sub GovDBOpen {
 	#      database,   username,   password
 	if (!$ENV{REMOTE_DB}) {
-		DBSQL::Open("govtrack", "root", "");
+		do "/home/govtrack/website/perl/db_open.pl";
 	} else {
 		DBSQL::Open("database=govtrack;host=govtrack.us", "govtrack_sandbox", "");
 	}

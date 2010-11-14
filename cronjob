@@ -80,7 +80,10 @@ sub DoIndex {
 
 	print "Indexing CR\n";
 	require "indexcr.pl";
-	MakeCRIndex($session);
+	eval {
+		MakeCRIndex($session);
+	};
+	if ($@) { warn $@; }
 	print "Done Indexing CR\n";
 
 	#if ($Weekly) {
@@ -99,7 +102,7 @@ sub DoIndex {
 	# LUCENE
 	
 	print "Lucene\n";
-	system("cd ../../website/bin; /usr/local/bin/mono Indexer.exe ../../data/us/$session");
+	system("lucene.sh $session");
 	
 	require "getpopularmonitors.pl";
 	GetPopularMonitors();
@@ -107,7 +110,7 @@ sub DoIndex {
 	require "indexusc.pl";
 	IndexBillsUSC($session);
 	
-	system('mysql -u root govtrack -Be "SELECT DISTINCT value FROM billindex WHERE idx = \"crs\"" > /home/govtrack/data/us/crs_terms');
+	system('mysql -u govtrack_sandbox govtrack -Be "SELECT DISTINCT value FROM billindex WHERE idx = \"crs\"" > /home/govtrack/data/us/crs_terms');
 	
 	system('tail -10000000 ~/logs/access_log |perl access_log_smarts.pl');
 	
@@ -116,7 +119,7 @@ sub DoIndex {
 
 
 sub DoEmails {
-	my $bin = "cd ../../website/bin; /usr/local/bin/mono GovTrackEmailUpdates.exe";
+	my $bin = "cd ../../website/bin; /usr/bin/mono GovTrackEmailUpdates.exe";
 	system("$bin daily");
 
 	if ($Weekly) { system("$bin weekly"); }
@@ -127,10 +130,3 @@ sub TestIsWeekly {
 	$Weekly = ($wday == 0);
 }
 
-sub RefreshMaybeModifiedBills {
-	require "parse_status.pl";
-	RefreshBills($session,
-		"status/vote2[\@result='pass' and (ancestor::bill/\@type='s' or ancestor::bill/\@type='h')]|status/topresident|status/signed", "EXISTS",
-		1);
-	#RefreshBills($session, "count(subjects/*)=0", "", 1);
-}

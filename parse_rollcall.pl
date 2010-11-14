@@ -227,7 +227,7 @@ sub RefreshBadVotes {
 
 		my $bad = 0;
 
-		if ($vote->documentElement->getAttribute("datetime") eq "") {
+		if ($vote->documentElement->getAttribute("datetime") !~ /T/) {
 			$bad = 1;
 		}
 
@@ -561,6 +561,7 @@ sub WriteRoll {
 	$mtime = DateToISOString($mtime);
 
 	open ROLL, ">$fn" || die "Couldn't open roll file";
+	binmode(ROLL, ":utf8");
 	print ROLL "<roll where=\"$where\" session=\"$SESSION\" year=\"$YEAR\" roll=\"$ROLL\" source=\"$source\"\n";
 	print ROLL "\tdatetime=\"$datetime\" updated=\"$mtime\"\n";
 	print ROLL "\taye=\"$aye\" nay=\"$nay\" nv=\"$nv\" present=\"$pr\">\n";
@@ -629,7 +630,7 @@ sub WriteRoll {
 	close ROLL;
 	
 	my $id;
-	if ($fn =~ /\/([hs](\d+-)?\d+)\.xml$/) {
+	if ($fn =~ /\/([hs][\dA-Z]+-\d+)\.xml$/) {
 		$id = $1;
 	} else {
 		die $fn;

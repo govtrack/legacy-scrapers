@@ -114,14 +114,12 @@ sub DrawGraph {
 					y_max_value => 100);
 			}
 
-			$ttf = '/usr/share/fonts/truetype/ttf-dejavu/DejaVuSans.ttf';
-			if (!-e $ttf) { die $ttf; }
-			$graph->set_title_font($ttf, 10*$resizefactor);
-			$graph->set_legend_font($ttf, 8*$resizefactor);
-			$graph->set_x_label_font($ttf, 8*$resizefactor);
-			$graph->set_x_axis_font($ttf, 8*$resizefactor);
-			$graph->set_y_label_font($ttf, ($width == $smallwidth ? 6 : 8)*$resizefactor);
-			$graph->set_y_axis_font($ttf, 8*$resizefactor);
+			$graph->set_title_font($TTF, 10*$resizefactor);
+			$graph->set_legend_font($TTF, 8*$resizefactor);
+			$graph->set_x_label_font($TTF, 8*$resizefactor);
+			$graph->set_x_axis_font($TTF, 8*$resizefactor);
+			$graph->set_y_label_font($TTF, ($width == $smallwidth ? 6 : 8)*$resizefactor);
+			$graph->set_y_axis_font($TTF, 8*$resizefactor);
 		
 			$graph->set( line_types => [1, 3, 3, 3] ); # 3 = dotted
 			$graph->set( dclrs => [ qw(red gray gray gray) ] );

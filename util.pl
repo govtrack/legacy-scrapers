@@ -12,6 +12,8 @@ use HTML::Encoding 'encoding_from_http_message';
 $XMLPARSER = XML::LibXML->new();
 $XMLPARSER->expand_entities(0);
 
+$TTF = "/usr/share/fonts/truetype/ttf-dejavu/DejaVuSerif.ttf";
+
 $UA = LWP::UserAgent->new(keep_alive => 2, timeout => 30, agent => "GovTrack.us", from => "operations@govtrack.us");
 
 %ChamberNameLong = ( s => 'Senate', h => 'House of Representatives' );
@@ -178,20 +180,22 @@ sub SubSessionFromYear {
 	return 2 - ($year % 2);
 }
 sub SessionFromDateTime {
-	$_[0] =~ s/T.*//i; # remove time part before date comparison
+	my $x = $_[0];
+	$x =~ s/T.*//i; # remove time part before date comparison
 	for my $rec (@SessionList) {
-		if ($_[0] ge $$rec[2] && $_[0] le $$rec[3]) { return $$rec[0]; }
-		if ($_[0] ge $$rec[2] && !$$rec[3]) { return $$rec[0]; }
+		if ($x ge $$rec[2] && $x le $$rec[3]) { return $$rec[0]; }
+		if ($x ge $$rec[2] && !$$rec[3]) { return $$rec[0]; }
 	}
-	die $_[0];
+	die $x;
 }
 sub SubSessionFromDateTime {
-	$_[0] =~ s/T.*//i; # remove time part before date comparison
+	my $x = $_[0];
+	$x =~ s/T.*//i; # remove time part before date comparison
 	for my $rec (@SessionList) {
-		if ($_[0] ge $$rec[2] && $_[0] le $$rec[3]) { return $$rec[1]; }
-		if ($_[0] ge $$rec[2] && !$$rec[3]) { return $$rec[1]; }
+		if ($x ge $$rec[2] && $x le $$rec[3]) { return $$rec[1]; }
+		if ($x ge $$rec[2] && !$$rec[3]) { return $$rec[1]; }
 	}
-	die $_[0];
+	die $x;
 }
 
 
@@ -676,6 +680,7 @@ sub Download {
 	}
 	
 	sleep(1);
+	if ($ENV{URLS}) { print "$URL\n"; }
 	my $response;
 	if (!$opts{post}) {
 		$response = $UA->get($URL);

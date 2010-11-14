@@ -615,8 +615,8 @@ sub BillTextMarkup {
 	$g =~ s/([^\s<>]{80})/$1 /g;
 
 	# mark up U.S.C. references
-	$g =~ s/((\d[0-9A-Za-z\-]*) U\.S\.C\. (\d[0-9A-Za-z\-]*)((\s*\([^\) ]+\))*))/usctag($1, $2, $3, $4)/eg;
-	$g =~ s/(Section (\d[0-9A-Za-z\-]*)((\s*\([^\) ]+\))*) of title (\S+), United States Code)/usctag($1, $5, $2, $3)/egi;
+	$g =~ s/((\d[0-9A-Za-z\-]*) U\.S\.C\. (\d[0-9A-Za-z\-]*)((\s*\([^\) <\&]+\))*))/usctag($1, $2, $3, $4)/eg;
+	$g =~ s/(Section (\d[0-9A-Za-z\-]*)((\s*\([^\) <\&]+\))*) of title ([^\s<\&]+), United States Code)/usctag($1, $5, $2, $3)/egi;
 			
 	# mark up references to public laws
 	$g =~ s/(Public Law (\d+)-(\d+))/<public-law-reference session="$2" number="$3">$1<\/public-law-reference>/g;

@@ -1,3 +1,5 @@
+# for x in {111..100}; do echo $x; CACHED=1 SKIP_AMENDMENTS=1 perl parse_status.pl ALLSESSION $x; done
+
 use Time::Local;
 use LWP::UserAgent;
 use Digest::MD5 qw(md5 md5_hex md5_base64);
@@ -8,12 +10,14 @@ require "persondb.pl";
 require "parse_rollcall.pl";
 require "indexing.pl";
 
+if ($ENV{OUTPUT_ERRORS_ONLY}) { $OUTPUT_ERRORS_ONLY = 1; }
+
 if ($ARGV[0] eq "PARSE_STATUS") { &Main; }
 if ($ARGV[0] eq "PARSE_STATUS_STDIN") { &Main2; }
 if ($ARGV[0] eq "REFRESH") { GovDBOpen(); RefreshBills($ARGV[1], $ARGV[2], $ARGV[3]); DBClose(); }
 if ($ARGV[0] eq "ALLSESSION") { &AllSession; }
 if ($ARGV[0] eq "ALLAMENDMENTS") { &AllAmendments; }
-if ($ARGV[0] eq "UPDATE") { GovDBOpen(); UpdateBills($ARGV[1]); DBClose(); }
+if ($ARGV[0] eq "UPDATE" || $ARGV[0] eq "ALLSESSION2") { GovDBOpen(); UpdateBills($ARGV[1], $ARGV[0] eq "ALLSESSION2"); DBClose(); }
 
 1;
 
@@ -34,6 +38,7 @@ sub Main2 {
 
 sub UpdateBills {
 	my $SESSION = shift;
+	my $ALL = shift;
 	
 	my $changefile = "../data/us/$SESSION/bills.bsshash";
 	my %changehash;
@@ -65,7 +70,7 @@ sub UpdateBills {
 				if ($line =~ /(.*)<hr>/) {
 					if (defined($rec)) {
 						$rec .= $1;
-						UpdateBills2($SESSION, $bt, $bn, $rec, \%changehash);
+						UpdateBills2($SESSION, $bt, $bn, $rec, \%changehash, $ALL);
 					}
 	
 					undef $bt;
@@ -75,7 +80,7 @@ sub UpdateBills {
 				
 				if ($line =~ m|<B>\s*(\d+)\.</B> <a href="/cgi-bin/bdquery/D\?d$SESSION2:\d+:./list/bss/d$SESSION2$tbt.lst::">\s*$BillAmendmentPattern\s*</A>|i) {
 					if (defined($rec)) {
-						UpdateBills2($SESSION, $bt, $bn, $rec, \%changehash);
+						UpdateBills2($SESSION, $bt, $bn, $rec, \%changehash, $ALL);
 					}
 					
 					($seq, $bt, $bn) = ($1, $2, $3);
@@ -105,7 +110,7 @@ sub UpdateBills {
 		}
 
 		if (defined($rec)) {
-			UpdateBills2($SESSION, $bt, $bn, $rec, \%changehash);
+			UpdateBills2($SESSION, $bt, $bn, $rec, \%changehash, $ALL);
 		}
 	}
 				
@@ -117,13 +122,13 @@ sub UpdateBills {
 }
 
 sub UpdateBills2 {
-	my ($bs, $bt, $bn, $rec, $changehash) = @_;
+	my ($bs, $bt, $bn, $rec, $changehash, $ignorehash) = @_;
 	
 	$rec = md5_base64($rec);
 
-	if ($$changehash{"$bt$bn"} eq $rec) { return; }
+	if ($$changehash{"$bt$bn"} eq $rec && !$ignorehash) { return; }
 	
-	print "Detected Update to $bt$bs-$bn.\n" if (!$OUTPUT_ERRORS_ONLY);
+	print "Detected Update to $bt$bs-$bn.\n" if (!$OUTPUT_ERRORS_ONLY && !$ignorehash);
 	
 	if ($bt eq 'HZ') {
 		if (!ParseAmendment($bs, 'h', 'Z', $bn)) { return; }
@@ -311,9 +316,7 @@ sub GovGetBill {
 	my $BILLTYPE2 = $BILLTYPE;
 	if ($BILLTYPE2 eq "hr") { $BILLTYPE2 = "hres"; }
 
-	my $SERVER = "thomas.loc.gov";	
-	my $PATH = "/cgi-bin/bdquery/z?d$SESSION2:$BILLTYPE2$BILLNUMBER:\@\@\@L";
-	my $URL = "http://$SERVER$PATH";
+	my $URL = "http://thomas.loc.gov/cgi-bin/bdquery/z?d$SESSION2:$BILLTYPE2$BILLNUMBER:\@\@\@X";
 
 	my ($content, $mtime) = Download($URL);
 	if (!$content) { return; }
@@ -323,9 +326,6 @@ sub GovGetBill {
 	$content =~ s/\n\r/\n/g;
 	$content =~ s/\r/ /g; # amazing, stray carriage returns
 	
-	# bring cosponsorship date onto previous line
-	$content =~ s/(\[[A-Z\d\-]+\])\n( - \d\d?\/)/$1$2/g;
-
 	my @content = split(/\n+/, $content);
 
 	my $SPONSOR_TITLE = undef;
@@ -350,8 +350,7 @@ sub GovGetBill {
 	my $titles = undef;
 	my $backup_title;
 	my $wasvetoed = 0;
-
-	my $titlesmode = 0;
+	my $conferenceagreed = 0;
 
 	my $action_substate = -1; # there is an initial DL to start off the main list
 	my $action_committee = undef;
@@ -360,13 +359,6 @@ sub GovGetBill {
 	while (scalar(@content) > 0) {
 		my $cline = shift(@content);
 
-		if ($titlesmode == 1) {
-			if ($cline =~ /<\/ul>/i) { $titlesmode = 0; next; }
-			$titles .= $cline;
-			next;
-		}
-
-		# TODO: Some bills (109th's debt ceiling limit) have No Sponsor.
 		# SPONSOR
 		if ($cline =~ /(<br \/>)?<b>Sponsor: <\/b>(No Sponsor|<a [^>]+>([\w\W]*)<\/a>\s+\[(\w\w(-\d+)?)\])/i) {
 			my $SPONSOR_TEXT = $2;
@@ -384,6 +376,7 @@ sub GovGetBill {
 			$INTRODUCED2 = ParseDateTime($INTRODUCED);
 			$INTRODUCED = ParseTime($INTRODUCED);
 
+			# Some bills (109th's debt ceiling limit) have No Sponsor.
 			if ($SPONSOR_TEXT ne "No Sponsor") {
 				if ($SPONSOR_NAME =~ s/^(Sen|Rep)\.?\s+//i) { $SPONSOR_TITLE = $1; }
 
@@ -416,7 +409,7 @@ sub GovGetBill {
 			$when = ParseDateTime($when);
 
 			my $statusdateattrs = "datetime=\"$when\"";
-			my @axndateattrs = (date => $when_old, datetime => $when);
+			my @axndateattrs = (datetime => $when); # date => $when_old
 			
 			# skip actions about amendments
 			if ($what =~ /^[SH].AMDT.\d+/) { next; }
@@ -430,7 +423,7 @@ sub GovGetBill {
 
 			# house vote
 			$what =~ s/, the Passed/, Passed/g; # 106 h4733 and others
-			if ($what =~ /(On passage|On motion to suspend the rules and pass the bill|On motion to suspend the rules and agree to the resolution|On motion to suspend the rules and pass the resolution|On agreeing to the resolution|On agreeing to the conference report|Two-thirds of the Members present having voted in the affirmative the bill is passed,?)(, the objections of the President to the contrary notwithstanding.?)?(, as amended)? (Passed|Failed|Agreed to|Rejected) (by voice vote|without objection|by (the Yeas and Nays|recorded vote)((:)? \(2\/3 required\))?: \d+ - \d+(, \d+ Present)? \(Roll no\. \d+\))/i) {
+			if ($what =~ /(On passage|On motion to suspend the rules and pass the bill|On motion to suspend the rules and agree to the resolution|On motion to suspend the rules and pass the resolution|On agreeing to the resolution|On agreeing to the conference report|Two-thirds of the Members present having voted in the affirmative the bill is passed,?|On motion that the House agree to the Senate amendments?|On motion that the House suspend the rules and concur in the Senate amendments?|On motion that the House suspend the rules and agree to the Senate amendments?)(, the objections of the President to the contrary notwithstanding.?)?(, as amended)? (Passed|Failed|Agreed to|Rejected) (by voice vote|without objection|by (the Yeas and Nays|recorded vote)((:)? \(2\/3 required\))?: \d+ - \d+(, \d+ Present)? [ \)]*\(Roll no\. \d+\))/i) {
 				my $motion = $1;
 				my $isoverride = $2;
 				my $asamended = $3;
@@ -451,6 +444,10 @@ sub GovGetBill {
 
 				if ($isoverride) {
 					$votetype = "override";
+				} elsif ($motion =~ /(agree to|concur in) the Senate amendment/) {
+					$votetype = "pingpong";
+				} elsif ($motion =~ /conference report/) {
+					$votetype = "conference";
 				} elsif ($BILLTYPE =~ /^h/) {
 					$votetype = "vote";
 				} else {
@@ -467,19 +464,12 @@ sub GovGetBill {
 					$suspension = 1;
 				}
 
-				my $votenode = 'vote';
-				if ($motion =~ /conference report/) {
-					$votenode = 'vote-aux';
-					$votetype = 'conference';
-				}
 
 				my $prevstatus = $STATUSNOW;
-				if ($votenode eq 'vote') {
+				if ($votetype eq 'vote' || $votetype eq "vote2") {
 					$STATUSNOW = "<$votetype $statusdateattrs where=\"h\" result=\"$passfail\" how=\"$how\" roll=\"$roll\"/>";
 				}
 
-				push @ACTIONS, [$action_state, 2, $votenode, $what, { @axndateattrs, where => 'h', type => $votetype, result => $passfail, how => $how, roll => $roll, suspension => $suspension } ];
-				
 				if ($roll != 0 && YearFromDateTime($when) >= 1990) { GetHouseVote(YearFromDateTime($when), $roll, 1); }
 
 				# Funny thing: on a motion to suspend the rules and 
@@ -493,8 +483,7 @@ sub GovGetBill {
 					$STATUSNOW = $prevstatus;
 				}
 				
-				if ($votenode eq 'vote') {
-				if (!$isoverride) {
+				if ($votetype eq 'vote' || $votetype eq 'vote2') {
 					# House vote on a House bill.
 					if ($BILLTYPE =~ /^h/) {
 						if ($passfail eq 'pass') {
@@ -525,9 +514,13 @@ sub GovGetBill {
 							} elsif ($BILLTYPE eq 'hc' || $BILLTYPE eq 'sc') {
 								# concurrent resolutions
 								$STATE = ['PASSED:CONCURRENTRES', $when];
-							} else {
-								# bills and joint resolutions not constitutional amendments
+							} elsif (!$asamended) {
+								# bills and joint resolutions not constitutional amendments, not amended from Senate version
 								$STATE = ['PASSED:BILL', $when]; # passed by second chamber, now on to president
+							} elsif ($asamended) {
+								# bills and joint resolutions not constitutional amendments, amended from Senate version.
+								# can go back to Senate, or conference committee
+								$STATE = ['PASS_BACK:HOUSE', $when];
 							}
 						} elsif ($motion =~ /On motion to suspend the rules/) {
 							# See note above.
@@ -537,7 +530,7 @@ sub GovGetBill {
 							$STATE = ['FAIL:SECOND:HOUSE', $when];
 						}
 					}
-				} else {
+				} elsif ($votetype eq 'override') {
 					# House override on a House bill.
 					if ($BILLTYPE =~ /^h/) {
 						if ($passfail eq 'pass') {
@@ -553,12 +546,29 @@ sub GovGetBill {
 							# Wait till the enacted line appears.
 						} else {
 							# override failure
-							$STATE = ['VETOED_OVERRIDE_FAIL_SECOND:HOUSE', $when];
+							$STATE = ['VETOED:OVERRIDE_FAIL_SECOND:HOUSE', $when];
 						}
 					}
-				}
+				} elsif ($votetype eq "pingpong") {
+					# This is a motion to accept Senate amendments to the House's original bill.
+					# If the motion fails, I suppose it is a provisional kill. If it passes,
+					# then pingpong is over and the bill has passed both chambers.
+					if ($passfail eq 'pass') {
+						$STATE = ['PASSED:BILL', $when];
+					} else {
+						$STATE = ['PROV_KILL:PINGPONGFAIL', $when];
+					}
+				} elsif ($votetype eq "conference") {
+					# This is tricky to integrate into state because we have to wait for both
+					# chambers to pass the conference report.
+					if ($passfail eq 'pass') { $conferenceagreed++; }
+					if ($conferenceagreed == 2) {
+						$STATE = ['PASSED:BILL', $when];
+					}
 				}
 
+				push @ACTIONS, [$action_state, 2, "vote", $what, { @axndateattrs, where => 'h', type => $votetype, result => $passfail, how => $how, roll => $roll, suspension => $suspension }, $STATE ];
+				
 			# senate vote
 			} elsif ($what =~ /(Passed Senate|Failed of passage in Senate|Resolution agreed to in Senate|Received in the Senate, considered, and agreed to|Submitted in the Senate, considered, and agreed to|Introduced in the Senate, read twice, considered, read the third time, and passed|Received in the Senate, read twice, considered, read the third time, and passed|Senate agreed to conference report|Cloture \S*\s?on the motion to proceed .*?not invoked in Senate|Cloture on the bill not invoked in Senate)(,?[\w\W]*,?) (without objection|by Unanimous Consent|by Voice Vote|by Yea-Nay( Vote)?\. \d+\s*-\s*\d+\. Record Vote (No|Number): \d+)/) {
 				my $motion = $1;
@@ -570,12 +580,20 @@ sub GovGetBill {
 				if ($passfail =~ /Passed|agreed/i) { $passfail = "pass"; }
 				else { $passfail = "fail"; }
 
+				my $votenode = 'vote';
+
 				if ($junk =~ /over veto/) {
 					$votetype = "override";
+				} elsif ($motion =~ /conference report/) {
+					$votetype = 'conference';
+				} elsif ($motion =~ /Cloture/) {
+					$votenode = "vote-aux";
+					$votetype = "cloture";
 				} elsif ($BILLTYPE =~ /^s/) {
 					$votetype = "vote";
 				} else {
 					$votetype = "vote2";
+
 				}
 				
 				if ($what =~ /Record Vote (No|Number): (\d+)\./) {
@@ -583,27 +601,13 @@ sub GovGetBill {
 					$how = "roll";
 				}
 
-				my $votenode = 'vote';
-				if ($motion =~ /conference report/) {
-					$votenode = 'vote-aux';
-					$votetype = 'conference';
-				}
-				if ($motion =~ /Cloture/) {
-					$votenode = "vote-aux";
-					$votetype = "cloture";
-				}
-
-
 				if ($votenode eq 'vote') {
 					$STATUSNOW = "<$votetype $statusdateattrs where=\"s\" result=\"$passfail\" how=\"$how\" roll=\"$roll\"/>";
 				}
 
-				push @ACTIONS, [$action_state, 2, $votenode, $what, { @axndateattrs, where => 's', type => $votetype, result => $passfail, how => $how, roll => $roll } ];
-				
 				if ($roll != 0 && $SESSION >= 101) { GetSenateVote($SESSION, SubSessionFromDateTime($when), YearFromDateTime($when), $roll, 1); }
 
-				if ($votenode eq 'vote') {
-				if ($votetype ne 'override') {
+				if ($votetype eq "vote" || $votetype eq "vote2") {
 					# Senate vote on a Senate bill.
 					if ($BILLTYPE =~ /^s/) {
 						if ($passfail eq 'pass') {
@@ -612,9 +616,6 @@ sub GovGetBill {
 							} else {
 								$STATE = ['PASS_OVER:SENATE', $when]; # passed by originating chamber, now in second chamber
 							}
-						} elsif ($votetype eq 'cloture') {
-							# A failed cloture vote is a provisional kill.
-							$STATE = ['PROV_KILL:CLOTUREFAILED', $when];
 						} else {
 							# outright failure
 							$STATE = ['FAIL:ORIGINATING:SENATE', $when];
@@ -630,9 +631,12 @@ sub GovGetBill {
 							} elsif ($BILLTYPE eq 'hc' || $BILLTYPE eq 'sc') {
 								# concurrent resolutions
 								$STATE = ['PASSED:CONCURRENTRES', $when];
-							} else {
-								# bills and joint resolutions not constitutional amendments
+							} elsif ($junk !~ /with amendments|with an amendment/i) {
+								# bills and joint resolutions not constitutional amendments, no amendment
 								$STATE = ['PASSED:BILL', $when]; # passed by second chamber, now on to president
+							} else {
+								# bills and joint resolutions not constitutional amendments, amendment sends back to House
+								$STATE = ['PASS_BACK:SENATE', $when];
 							}
 						} elsif ($votetype eq 'cloture') {
 							# See note above.
@@ -642,7 +646,7 @@ sub GovGetBill {
 							$STATE = ['FAIL:SECOND:SENATE', $when];
 						}
 					}
-				} else {
+				} elsif ($votetype eq "override") {
 					# Senate override on a Senate bill.
 					if ($BILLTYPE =~ /^s/) {
 						if ($passfail eq 'pass') {
@@ -661,9 +665,31 @@ sub GovGetBill {
 							$STATE = ['VETOED:OVERRIDE_FAIL_SECOND:SENATE', $when];
 						}
 					}
-				}
+				} elsif ($votetype eq 'cloture' && $passfail eq 'fail') {
+					# A failed cloture vote is a provisional kill.
+					$STATE = ['PROV_KILL:CLOTUREFAILED', $when];
+				} elsif ($votetype eq "pingpong") {
+					# TODO: We don't parse pingpong votes in the Senate because I haven't seen
+					# an example.
+					# This is a motion to accept House amendments to the Senate's original bill.
+					# If the motion fails, I suppose it is a provisional kill. If it passes,
+					# then pingpong is over and the bill has passed both chambers.
+					if ($passfail eq 'pass') {
+						$STATE = ['PASSED:BILL', $when];
+					} else {
+						$STATE = ['PROV_KILL:PINGPONGFAIL', $when];
+					}
+				} elsif ($votetype eq "conference") {
+					# This is tricky to integrate into state because we have to wait for both
+					# chambers to pass the conference report.
+					if ($passfail eq 'pass') { $conferenceagreed++; }
+					if ($conferenceagreed == 2) {
+						$STATE = ['PASSED:BILL', $when];
+					}
 				}
 
+				push @ACTIONS, [$action_state, 2, $votenode, $what, { @axndateattrs, where => 's', type => $votetype, result => $passfail, how => $how, roll => $roll }, $STATE ];
+				
 			} elsif ($what =~ /Placed on (the )?([\w ]+) Calendar( under ([\w ]+))?[,\.] Calendar No\. (\d+)\.|Committee Agreed to Seek Consideration Under Suspension of the Rules|Ordered to be Reported/i) {
 				if ($STATUSNOW =~ /^<introduced/) {
 					$STATUSNOW = "<calendar $statusdateattrs />";
@@ -671,38 +697,37 @@ sub GovGetBill {
 				if ($$STATE[0] eq 'INTRODUCED' || $$STATE[0] eq 'REFERRED') {
 					$STATE = ['REPORTED', $when];
 				}
-				push @ACTIONS, [$action_state, 2, "calendar", $what, { @axndateattrs, calendar => $2, under => $4, number => $5 }];
+				push @ACTIONS, [$action_state, 2, "calendar", $what, { @axndateattrs, calendar => $2, under => $4, number => $5 }, $STATE];
 			} elsif ($what =~ /Cleared for White House|Presented to President/) {
 				$STATUSNOW = "<topresident $statusdateattrs />";
-				push @ACTIONS, [$action_state, 2, "topresident", $what, { @axndateattrs }];
+				push @ACTIONS, [$action_state, 2, "topresident", $what, { @axndateattrs }, $STATE];
 			} elsif ($what =~ /Signed by President/) {
 				$STATUSNOW = "<signed $statusdateattrs />";
-				push @ACTIONS, [$action_state, 2, "signed", $what, { @axndateattrs }];
+				push @ACTIONS, [$action_state, 2, "signed", $what, { @axndateattrs }, $STATE];
 			} elsif ($what =~ /Pocket Vetoed by President/) {
 				$STATUSNOW = "<veto pocket=\"1\" $statusdateattrs />";
-				push @ACTIONS, [$action_state, 2, "vetoed", $what, { @axndateattrs, pocket => 1 }];
 				$wasvetoed = 1;
 				$STATE = ['VETOED:POCKET', $when];
+				push @ACTIONS, [$action_state, 2, "vetoed", $what, { @axndateattrs, pocket => 1 }, $STATE];
 			} elsif ($what =~ /Vetoed by President/) {
 				$STATUSNOW = "<veto $statusdateattrs />";
-				push @ACTIONS, [$action_state, 2, "vetoed", $what, { @axndateattrs }];
 				$wasvetoed = 1;
 				$STATE = ['PROV_KILL:VETO', $when]; # could be overridden
+				push @ACTIONS, [$action_state, 2, "vetoed", $what, { @axndateattrs }, $STATE];
 			} elsif ($what =~ /Became (Public|Private) Law No: ([\d\-]+)\./) {
 				$STATUSNOW = "<enacted $statusdateattrs />";
-				push @ACTIONS, [$action_state, 2, "enacted", $what, { @axndateattrs, type => lc($1), number => $2 }];
 				if (!$wasvetoed) {
 					$STATE = ['ENACTED:SIGNED', $when, {type => lc($1), number => $2}];
 				} else {
 					$STATE = ['ENACTED:VETO_OVERRIDE', $when, {type => lc($1), number => $2}];
 				}
+				push @ACTIONS, [$action_state, 2, "enacted", $what, { @axndateattrs, type => lc($1), number => $2 }, $STATE];
 
 			} elsif ($what =~ /Passed House pursuant to/) {
 				my $votetype;
 				my $how = "by special rule";
 				if ($BILLTYPE =~ /^h/) { $votetype = "vote"; } else { $votetype = "vote2"; }
 				$STATUSNOW = "<$votetype $statusdateattrs where=\"h\" result=\"pass\" how=\"$how\"/>";
-				push @ACTIONS, [$action_state, 2, "vote", $what, { @axndateattrs, where => 'h', type => $votetype, result => 'pass', how => $how } ];
 				if ($BILLTYPE eq 'hr') {
 					$STATE = ['PASSED:SIMPLERES', $when];
 				} elsif ($BILLTYPE =~ /^h/) {
@@ -717,6 +742,7 @@ sub GovGetBill {
 					# bills and joint resolutions not constitutional amendments
 					$STATE = ['PASSED:BILL', $when]; # passed by second chamber, now on to president
 				}
+				push @ACTIONS, [$action_state, 2, "vote", $what, { @axndateattrs, where => 'h', type => $votetype, result => 'pass', how => $how }, $STATE ];
 
 			} elsif ($what =~ /Motion to reconsider laid on the table Agreed to without objection/) {
 				# that's the end of that bill
@@ -733,20 +759,39 @@ sub GovGetBill {
 					$action_subcommittee = $1;
 				}
 
-				push @ACTIONS, [$action_state, 1, $statusdateattrs, $what];
-
 				if ($$STATE[0] eq 'INTRODUCED') {
 					$STATE = ['REFERRED', $when];
 				}
+				push @ACTIONS, [$action_state, 1, $statusdateattrs, $what, undef, $STATE];
 			}
+		}
+	}
 
-		# COSPONSORS
-		} elsif ($cline =~ /(<br ?\/>)?<a href=[^>]+>(Rep|Sen) ([\w\W]+)<\/a> \[([A-Z\d\-]+)\] - (\d\d?\/\d\d?\/\d\d\d\d)(\(withdrawn - (\d\d?\/\d\d?\/\d\d\d\d)\))?/i) {
+	if (!defined($INTRODUCED)) {
+		warn "parsing bill $BILLTYPE$SESSION-$BILLNUMBER: Failed parse, no introduced date found: $URL (sponsor $SPONSOR_NAME)";
+		return;
+	}
+
+
+	my $mtime2;
+
+	# COSPONSORS
+	$URL =~ s/\@[\w\W]*$/\@\@\@P/;
+	($content, $mtime2) = Download($URL);
+	if ($content) {
+		$content =~ s/\n\r/\n/g;
+		$content =~ s/\r/ /g; # amazing, stray carriage returns
+		$content =~ s/(\[[A-Z\d\-]+\])\n( - \d\d?\/)/$1$2/g; # bring cosponsorship date onto previous line
+		@content = split(/\n+/, $content);
+		for my $cline (@content) {
+		if ($cline =~ /(<br ?\/>)?<a href=[^>]+>(Rep|Sen) ([\w\W]+)<\/a> \[([A-Z\d\-]+)\] - (\d\d?\/\d\d?\/\d\d\d\d)(\(withdrawn - (\d\d?\/\d\d?\/\d\d\d\d)\))?/i) {
 			my $t = $2;
 			my $n = $3;
 			my $s = $4;
 			my $d = $5;
 			my $withdrawndate = $7;
+			
+			$n =~ s/Colordao/Colorado/; # typo
 			
 			my $i = PersonDBGetID(title => $t, name => $n, state => $s, when => ParseTime($d));
 			if (!defined($i)) {
@@ -764,31 +809,15 @@ sub GovGetBill {
 				}
 			}
 
-		# TITLES
-		} elsif ($cline =~ /<a name="titles">/i) {
-			$titlesmode = 1;
-
-		} else {
-			#print "UNKNOWN: $cline\n";
+		}
 		}
 	}
 
-	if (!defined($INTRODUCED)) {
-		warn "parsing bill $BILLTYPE$SESSION-$BILLNUMBER: Failed parse, no introduced date found: $URL (sponsor $SPONSOR_NAME)";
-		return;
-	}
-
-
 	# TITLES
 
-	my $mtime2;
-
-	if ($titles eq "" || $titles =~ /\*NONE\*/) {
-		# There's some bug in THOMAS that titles aren't appearing on the All Information status page.
-		$URL =~ s/\@[\w\W]*$/\@\@\@T/;
-		($titles, $mtime2) = Download($URL);
-		if (!$titles) { return; }
-	}
+	$URL =~ s/\@[\w\W]*$/\@\@\@T/;
+	($titles, $mtime2) = Download($URL);
+	if ($titles) {
 	$titles =~ s/[\n\r]//g;
 	$titles =~ s/<\/?i>//gi;
 	while ($titles =~ m/<li>([\w\W]*?)( as [\w ]*)?:<br\/?>([\w\W]+?)(<p>|<\/ul>|$)/gi) {
@@ -805,6 +834,7 @@ sub GovGetBill {
 			push @TITLES, [lc($type), lc($when), HTMLify($t)];
 		}
 	}
+	}
 
 	if (scalar(@TITLES) == 0) { push @TITLES, $backup_title; }
 
@@ -816,6 +846,7 @@ sub GovGetBill {
 	$URL =~ s/\@[\w\W]*$/\@\@\@D\&summ2=m\&/;
 	($content, $mtime2) = Download($URL);
 	if (!$content) { return; }
+	$content =~ s/\x1f\x1d//g; # weird characters in HR 545/101
 	$content =~ s/\n\r/\n/g;
 	$content =~ s/\r/ /g; # amazing, stray carriage returns
 	@content = split(/\n+/, $content);
@@ -823,7 +854,7 @@ sub GovGetBill {
 		my $cline = shift(@content);
 		if ($summarymode == 1) {
 			if ($cline =~ /<HR/i) { $summarymode = 0; next; }
-			if ($cline =~ /THOMAS Home/) { last; }
+			if ($cline =~ /THOMAS Home|<div id="footer">/) { last; }
 			$cline =~ s/<a[^>]*>([\w\W]*?)<\/a>/$1/ig;
 			$SUMMARY .= $cline . "\n";
 			next;
@@ -941,6 +972,7 @@ sub GovGetBill {
 
 	my @act;
 	my $act2;
+	my $laststate = '';
 	foreach $c (sort( { CompareDates($$a[0][0], $$b[0][0]); }  @ACTIONS)) {
 		my @cc = @{ $c };
 		my $ccstate = shift(@cc);
@@ -961,6 +993,7 @@ sub GovGetBill {
 			my $s = "<$cc[0] ";
 			my %sk = %{ $cc[2] };
 			foreach my $k (keys(%sk)) { if ($sk{$k} eq "") { next; } $s .= "$k=\"$sk{$k}\" "; }
+			if ($cc[3] ne '' && $cc[3][0] ne $laststate) { $s .= " state=\"" . $cc[3][0] . "\""; $laststate = $cc[3][0]; }
 			$s .= ">$axncom" . ParseActionText($cc[1]) . "</$cc[0]>";
 			push @act, "\t\t$s";
 		}
@@ -983,12 +1016,14 @@ sub GovGetBill {
 			} else {
 				my ($csnode) = $cnode->findnodes("subcommittee[thomas-names/name[\@session=$SESSION] = \"$cc[1]\"]");
 				if (!$csnode) {
-					warn "Subcommittee not found: $cc[0] -- $cc[1]";
+					#warn "Subcommittee not found: $cc[0] -- $cc[1]";
 				} else {
 					$ccode = $cnode->getAttribute('code') . '-' . $csnode->getAttribute('code');
 				}
 			}
 		}
+		$cc[0] = htmlify($cc[0]);
+		$cc[1] = htmlify($cc[1]);
 		my $s = "";
 		if ($cc[1] ne "") {
 			$s = " subcommittee=\"$cc[1]\"";

@@ -62,7 +62,7 @@ sub GetPeopleList {
 			$rep{firstnamedisplay} = $rep{middlename};
 		}
 
-		my @currole = DBSelectFirst(people_roles, [type, state, district, party],
+		my @currole = DBSelectFirst(people_roles, [type, state, district, party, title],
 			["personid=$rep{id}",
 			 "(type='rep' or type='sen')",
 			 "startdate<='" . EndOfSessionYMD($session) . "'",
@@ -77,8 +77,11 @@ sub GetPeopleList {
 				$Person{$rep{id}}{CUR_INFO} = " title='Sen.' state='$currole[1]'";
 				$Person{$rep{id}}{NAME} = "Sen. $Person{$rep{id}}{NAME} [$currole[3], $currole[1]]";
 			} elsif ($currole[0] eq "rep") {
-				$Person{$rep{id}}{CUR_INFO} = " title='Rep.' state='$currole[1]' district='$currole[2]'";
-				$Person{$rep{id}}{NAME} = "Rep. $Person{$rep{id}}{NAME} [$currole[3], $currole[1]-$currole[2]]";
+				my $title = "Rep.";
+				if ($currole[4] eq "RC") { $title = "Res.Comm."; }
+				if ($currole[4] eq "DEL") { $title = "Del."; }
+				$Person{$rep{id}}{CUR_INFO} = " title='$title' state='$currole[1]' district='$currole[2]'";
+				$Person{$rep{id}}{NAME} = "$title $Person{$rep{id}}{NAME} [$currole[3], $currole[1]-$currole[2]]";
 			}
 		}
 

@@ -1,8 +1,8 @@
--- MySQL dump 10.13  Distrib 5.1.37, for debian-linux-gnu (x86_64)
+-- MySQL dump 10.13  Distrib 5.1.41, for debian-linux-gnu (x86_64)
 --
 -- Host: localhost    Database: govtrack
 -- ------------------------------------------------------
--- Server version	5.1.37-1ubuntu5.1
+-- Server version	5.1.41-3ubuntu12.6
 
 /*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
 /*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
@@ -50,7 +50,7 @@ CREATE TABLE `people` (
   KEY `lastnameenc` (`lastnameenc`(15)),
   KEY `lastnamealt` (`lastnamealt`(15)),
   KEY `lismemberid` (`lismemberid`)
-) ENGINE=MyISAM AUTO_INCREMENT=412385 DEFAULT CHARSET=utf8 COLLATE=utf8_bin;
+) ENGINE=MyISAM AUTO_INCREMENT=412390 DEFAULT CHARSET=utf8 COLLATE=utf8_bin;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -75,7 +75,7 @@ CREATE TABLE `people_roles` (
   PRIMARY KEY (`personroleid`),
   KEY `personid` (`personid`),
   KEY `state` (`state`,`enddate`)
-) ENGINE=MyISAM AUTO_INCREMENT=42505 DEFAULT CHARSET=latin1;
+) ENGINE=MyISAM AUTO_INCREMENT=42513 DEFAULT CHARSET=latin1;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -98,7 +98,7 @@ CREATE TABLE `people_videos` (
   KEY `personid` (`personid`,`date`),
   KEY `date` (`date`),
   KEY `link` (`link`(127))
-) ENGINE=MyISAM AUTO_INCREMENT=4825992 DEFAULT CHARSET=utf8;
+) ENGINE=MyISAM AUTO_INCREMENT=11798391 DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -139,7 +139,7 @@ CREATE TABLE `people_committees` (
   `senatecode` text COLLATE utf8_unicode_ci NOT NULL,
   PRIMARY KEY (`people_committee_id`),
   KEY `personid` (`personid`)
-) ENGINE=MyISAM AUTO_INCREMENT=150841 DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+) ENGINE=MyISAM AUTO_INCREMENT=158571 DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -170,4 +170,4 @@ CREATE TABLE `committees` (
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2010-03-03 22:06:56
+-- Dump completed on 2010-11-14 15:02:31

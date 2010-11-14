@@ -5,7 +5,8 @@ require "general.pl";
 require "persondb.pl";
 
 $FIRSTSESSION = 93;
-$SESSION = SessionFromDate(time);
+$SESSION = $ARGV[0];
+if (!$SESSION) { die; }
 
 GovDBOpen();
 
@@ -153,9 +154,9 @@ sub GetSenateCommittees {
 				$afterMain = 1;
 	
 				AddXmlNode($scxml, 'member', name => "$f $l", id => $pid, role => $p);
-			} elsif ($line =~ s/^\s+(<\/td>)?<td valign="top" nowrap="nowrap">//) {
+			} elsif ($line =~ s/^\s+(<\/td>)?<td valign="top" nowrap>//) {
 				foreach my $x (split(/<br>/, $line)) {
-					if ($x !~ /(.*?) \((\w\w)\)(, <position>(.*?)<\/position>)?/) { warn $x; next; }
+					if ($x !~ /(.*?)\s+\((\w\w)\)(, <position>(.*?)<\/position>)?/) { warn $x; next; }
 					my ($pname, $state, $position) = ($1, $2, $4);
 	
 					my $pid = PersonDBGetID(name => $pname, title => "sen", state => $state, when => "now");
@@ -173,7 +174,7 @@ sub GetSenateCommittees {
 						senatecode => ($subname eq '' ? $code : "$code-$subctr"))
 						    if (!$testing);
 	
-					AddXmlNode($scxml, 'member', name => "$pname", id => $pid, role => $p);
+					AddXmlNode($scxml, 'member', name => "$pname", id => $pid, role => $position);
 				}
 				$afterMain = 1;
 			}

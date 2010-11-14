@@ -1,8 +1,8 @@
--- MySQL dump 10.13  Distrib 5.1.37, for debian-linux-gnu (x86_64)
+-- MySQL dump 10.13  Distrib 5.1.41, for debian-linux-gnu (x86_64)
 --
 -- Host: localhost    Database: govtrack
 -- ------------------------------------------------------
--- Server version	5.1.37-1ubuntu5.1
+-- Server version	5.1.41-3ubuntu12.6
 
 /*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
 /*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
@@ -185,7 +185,8 @@ DROP TABLE IF EXISTS `notes`;
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `notes` (
   `pageid` varchar(256) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
-  `xhtml` text CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
+  `xhtml` text NOT NULL,
+  `alttitle` tinytext,
   PRIMARY KEY (`pageid`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
@@ -210,7 +211,7 @@ CREATE TABLE `questions` (
   PRIMARY KEY (`id`),
   KEY `question` (`question`),
   KEY `topic` (`topic`(16))
-) ENGINE=MyISAM AUTO_INCREMENT=28406 DEFAULT CHARSET=utf8;
+) ENGINE=MyISAM AUTO_INCREMENT=37138 DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -223,6 +224,7 @@ DROP TABLE IF EXISTS `votes`;
 CREATE TABLE `votes` (
   `id` varchar(10) COLLATE utf8_unicode_ci NOT NULL,
   `date` datetime NOT NULL,
+  `seq` int(11) NOT NULL,
   `description` text COLLATE utf8_unicode_ci NOT NULL,
   `result` text COLLATE utf8_unicode_ci NOT NULL,
   `billsession` int(11) DEFAULT NULL,
@@ -232,7 +234,7 @@ CREATE TABLE `votes` (
   `amdnumber` int(11) DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `bill` (`billsession`,`billtype`,`billnumber`),
-  KEY `date` (`date`)
+  KEY `date` (`date`,`seq`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
@@ -245,4 +247,4 @@ CREATE TABLE `votes` (
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2010-03-03 22:06:56
+-- Dump completed on 2010-11-14 15:02:31
