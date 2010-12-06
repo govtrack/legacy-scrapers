@@ -99,7 +99,7 @@ sub DownloadRollCallVotesAll {
 		$node->setAttribute('title', $xml->findvalue('roll/question'));
 		
 		if ($xml->findvalue('roll/result') =~ /Passed|Agreed|Confirmed|Amendment Germane|Decision of Chair Sustained|Veto Overridden|Point of Order Sustained/i) { $node->setAttribute('result', 'pass'); }
-		elsif ($xml->findvalue('roll/result') =~ /Fail|Defeated|Rejected|Not Sustained|Amendment Not Germane|Point of Order Not Well Taken/i) { $node->setAttribute('result', 'fail'); }
+		elsif ($xml->findvalue('roll/result') =~ /Fail|Defeated|Rejected|Not Sustained|Amendment Not Germane|Point of Order Not Well Taken|Not Guilty|Veto Sustained/i) { $node->setAttribute('result', 'fail'); }
 		else { warn "$vote: Unparsed result: " . $xml->findvalue('roll/result'); }
 
 		my $counts = $xml->findvalue('roll/@aye') . "-" . $xml->findvalue('roll/@nay');
@@ -319,7 +319,7 @@ sub GetSenateVote {
 			$t = $BillTypeMap{lc($t)};
 			if (defined($t)) { $BILL = [$SESSION, $t, $n]; }
 		} else {
-			die "Amendment without bill in $URL";
+			warn "Amendment without bill in $URL";
 		}
 	}
 
@@ -373,9 +373,9 @@ sub GetHouseVote {
 	if ($SKIPIFEXISTS && -e $fn) { return 0; }
 	if ($SKIPIFEXISTS =~ /^(\d)D/i && -M $fn < $1) { return 0; }
 
-	print "Fetching House roll $SESSION-$YEAR $ROLL\n" if (!$OUTPUT_ERRORS_ONLY);
 	my $roll2 = sprintf("%03d", $ROLL);
 	my $URL = "http://clerk.house.gov/evs/$YEAR/roll$roll2.xml";
+	print "Fetching House roll $SESSION-$YEAR $ROLL at $URL\n" if (!$OUTPUT_ERRORS_ONLY);
 	my ($content, $mtime) = Download($URL);
 	if (!$content) { return; }
 
@@ -408,12 +408,10 @@ sub GetHouseVote {
            my @pnode = $votexml->findnodes('vote-metadata/vote-totals/totals-by-candidate[candidate="Present"]');
            if (@pnode>0) {
               $presents = $pnode[0]->findvalue('candidate-total');
-              print "Present: $presents\n";
            }
            my @nnode = $votexml->findnodes('vote-metadata/vote-totals/totals-by-candidate[candidate="Not Voting"]');
            if (@nnode>0) {
               $nvs = $nnode[0]->findvalue('candidate-total');
-              print "Not Voting: $nvs\n";
            }
         } else {
 	   $ayes = $votexml->findvalue('vote-metadata/vote-totals/totals-by-vote/yea-total');
@@ -518,6 +516,7 @@ sub GetHouseVote {
 
 		$vote = htmlify($vote);
 		push @{$votes{$vote}}, $id;
+		
 	}
 
 	WriteRoll($fn, $mtime, "house", $ROLL, $datetime, \%votes, $type, $question, $required, $result, $bill, $amendment, "house.gov");
@@ -538,6 +537,8 @@ sub WriteRoll {
 	my $BILL = shift;
 	my $AMENDMENT = shift;
 	my $source = shift;
+
+	if ($ENV{NO_WRITE}) { return; }
 
 	my $SESSION = SessionFromDateTime($datetime);
 	my $YEAR = YearFromDateTime($datetime);
