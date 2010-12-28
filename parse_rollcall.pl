@@ -100,6 +100,7 @@ sub DownloadRollCallVotesAll {
 		
 		if ($xml->findvalue('roll/result') =~ /Passed|Agreed|Confirmed|Amendment Germane|Decision of Chair Sustained|Veto Overridden|Point of Order Sustained/i) { $node->setAttribute('result', 'pass'); }
 		elsif ($xml->findvalue('roll/result') =~ /Fail|Defeated|Rejected|Not Sustained|Amendment Not Germane|Point of Order Not Well Taken|Not Guilty|Veto Sustained/i) { $node->setAttribute('result', 'fail'); }
+		elsif ($xml->findvalue('roll/result') =~ /Guilty/i) { $node->setAttribute('result', 'pass'); }
 		else { warn "$vote: Unparsed result: " . $xml->findvalue('roll/result'); }
 
 		my $counts = $xml->findvalue('roll/@aye') . "-" . $xml->findvalue('roll/@nay');

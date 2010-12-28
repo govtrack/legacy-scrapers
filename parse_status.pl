@@ -395,8 +395,8 @@ sub GovGetBill {
 			$STATE = ['INTRODUCED', $INTRODUCED2, { sponsor => $SPONSOR_ID }];
 
 		# BACKUP TITLE
-		} elsif ($cline =~ /<B>Title:<\/B> ([\w\W]+)/i) {
-			$backup_title = ['official', 'introduced', HTMLify($1)];
+		} elsif ($cline =~ /<B>(Latest )?Title:<\/B> ([\w\W]+)/i) {
+			$backup_title = ['official', 'introduced', HTMLify($2)];
 
 		# ACTIONS
 		} elsif ($cline =~ /<dt><strong>([\d\/ :apm]+):<\/strong><dd>([\w\W]+)/i) {
@@ -423,7 +423,7 @@ sub GovGetBill {
 
 			# house vote
 			$what =~ s/, the Passed/, Passed/g; # 106 h4733 and others
-			if ($what =~ /(On passage|On motion to suspend the rules and pass the bill|On motion to suspend the rules and agree to the resolution|On motion to suspend the rules and pass the resolution|On agreeing to the resolution|On agreeing to the conference report|Two-thirds of the Members present having voted in the affirmative the bill is passed,?|On motion that the House agree to the Senate amendments?|On motion that the House suspend the rules and concur in the Senate amendments?|On motion that the House suspend the rules and agree to the Senate amendments?)(, the objections of the President to the contrary notwithstanding.?)?(, as amended)? (Passed|Failed|Agreed to|Rejected) (by voice vote|without objection|by (the Yeas and Nays|recorded vote)((:)? \(2\/3 required\))?: \d+ - \d+(, \d+ Present)? [ \)]*\(Roll no\. \d+\))/i) {
+			if ($what =~ /(On passage|On motion to suspend the rules and pass the bill|On motion to suspend the rules and agree to the resolution|On motion to suspend the rules and pass the resolution|On agreeing to the resolution|On agreeing to the conference report|Two-thirds of the Members present having voted in the affirmative the bill is passed,?|On motion that the House agree to the Senate amendments?|On motion that the House suspend the rules and concur in the Senate amendments?|On motion that the House suspend the rules and agree to the Senate amendments?|On motion that the House agree with an amendment to the Senate amendments?)(, the objections of the President to the contrary notwithstanding.?)?(, as amended)? (Passed|Failed|Agreed to|Rejected) (by voice vote|without objection|by (the Yeas and Nays|recorded vote)((:)? \(2\/3 required\))?: \d+ - \d+(, \d+ Present)? [ \)]*\(Roll no\. \d+\))/i) {
 				my $motion = $1;
 				my $isoverride = $2;
 				my $asamended = $3;
@@ -444,7 +444,7 @@ sub GovGetBill {
 
 				if ($isoverride) {
 					$votetype = "override";
-				} elsif ($motion =~ /(agree to|concur in) the Senate amendment/) {
+				} elsif ($motion =~ /(agree (with an amendment )?to|concur in) the Senate amendment/) {
 					$votetype = "pingpong";
 				} elsif ($motion =~ /conference report/) {
 					$votetype = "conference";
@@ -750,18 +750,37 @@ sub GovGetBill {
 					$STATUSNOW = $STATUS_ON_TABLE_MOTION;
 					undef $STATUS_ON_TABLE_MOTION;
 				}
+				push @ACTIONS, [$action_state, 1, $statusdateattrs, $what, undef, $STATE];
 				
-			} else {
-				if ($what =~ /^Referred to ((House|Senate) .*[^\.]).?/) {
-					$action_committee = $1;
-				}
-				if ($what =~ /^Referred to the Subcommittee on (.*[^\.]).?/) {
-					$action_subcommittee = $1;
-				}
-
+			} elsif ($what =~ /^Referred to (the )?((House|Senate|Committee) .*[^\.]).?/) {
+				$action_committee = $2;
 				if ($$STATE[0] eq 'INTRODUCED') {
 					$STATE = ['REFERRED', $when];
 				}
+				push @ACTIONS, [$action_state, 1, $statusdateattrs, $what, undef, $STATE];
+			} elsif ($what =~ /^Received in the Senate and referred to (the )?(.*[^\.]).?/) {
+				$action_committee = $2;
+				push @ACTIONS, [$action_state, 1, $statusdateattrs, $what, undef, $STATE];
+			} elsif ($what =~ /^Received in the Senate/) {
+				push @ACTIONS, [$action_state, 1, $statusdateattrs, $what, undef, $STATE];
+			} elsif ($what =~ /^Message on Senate action sent to the House/) {
+				push @ACTIONS, [$action_state, 1, $statusdateattrs, $what, undef, $STATE];
+			
+			} elsif ($what =~ /^Referred to the Subcommittee on (.*[^\.]).?/) {
+				$action_subcommittee = $1;
+				if ($$STATE[0] eq 'INTRODUCED') {
+					$STATE = ['REFERRED', $when];
+				}
+				push @ACTIONS, [$action_state, 1, $statusdateattrs, $what, undef, $STATE];
+				
+			} elsif ($what =~ /^Reported by|discharged (by Unanimous Consent)?\./i) {
+				push @ACTIONS, [$action_state, 1, $statusdateattrs, $what, undef, $STATE];
+				
+			} elsif ($what =~ /^Considered as privileged matter|^Considered under suspension of the rules|^Considered as unfinished business|moved to|DEBATE|^Considered by unanimous consent|Committee Consideration and Mark-up Session Held|Sponsor introductory remarks on measure/) {
+				push @ACTIONS, [$action_state, 1, $statusdateattrs, $what, undef, $STATE];
+			
+			} else {
+				#print "$BILLTYPE$SESSION-$BILLNUMBER: Unparsed action: $what\n";
 				push @ACTIONS, [$action_state, 1, $statusdateattrs, $what, undef, $STATE];
 			}
 		}
@@ -782,6 +801,7 @@ sub GovGetBill {
 		$content =~ s/\n\r/\n/g;
 		$content =~ s/\r/ /g; # amazing, stray carriage returns
 		$content =~ s/(\[[A-Z\d\-]+\])\n( - \d\d?\/)/$1$2/g; # bring cosponsorship date onto previous line
+		$content =~ s/(.)<\/br>/$1\n<\/br>/g;
 		@content = split(/\n+/, $content);
 		for my $cline (@content) {
 		if ($cline =~ /(<br ?\/>)?<a href=[^>]+>(Rep|Sen) ([\w\W]+)<\/a> \[([A-Z\d\-]+)\] - (\d\d?\/\d\d?\/\d\d\d\d)(\(withdrawn - (\d\d?\/\d\d?\/\d\d\d\d)\))?/i) {
