@@ -50,7 +50,7 @@ CREATE TABLE `people` (
   KEY `lastnameenc` (`lastnameenc`(15)),
   KEY `lastnamealt` (`lastnamealt`(15)),
   KEY `lismemberid` (`lismemberid`)
-) ENGINE=MyISAM AUTO_INCREMENT=412394 DEFAULT CHARSET=utf8 COLLATE=utf8_bin;
+) ENGINE=MyISAM AUTO_INCREMENT=412497 DEFAULT CHARSET=utf8 COLLATE=utf8_bin;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -75,7 +75,7 @@ CREATE TABLE `people_roles` (
   PRIMARY KEY (`personroleid`),
   KEY `personid` (`personid`),
   KEY `state` (`state`,`enddate`)
-) ENGINE=MyISAM AUTO_INCREMENT=42518 DEFAULT CHARSET=latin1;
+) ENGINE=MyISAM AUTO_INCREMENT=43008 DEFAULT CHARSET=latin1;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -170,4 +170,4 @@ CREATE TABLE `committees` (
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2010-12-28 18:39:24
+-- Dump completed on 2010-12-28 20:17:08
