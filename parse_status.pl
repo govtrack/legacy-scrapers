@@ -15,9 +15,8 @@ if ($ENV{OUTPUT_ERRORS_ONLY}) { $OUTPUT_ERRORS_ONLY = 1; }
 if ($ARGV[0] eq "PARSE_STATUS") { &Main; }
 if ($ARGV[0] eq "PARSE_STATUS_STDIN") { &Main2; }
 if ($ARGV[0] eq "REFRESH") { GovDBOpen(); RefreshBills($ARGV[1], $ARGV[2], $ARGV[3]); DBClose(); }
-if ($ARGV[0] eq "ALLSESSION") { &AllSession; }
+if ($ARGV[0] eq "UPDATE" || $ARGV[0] eq "ALL") { GovDBOpen(); UpdateBills($ARGV[1], $ARGV[0] eq "ALL"); DBClose(); }
 if ($ARGV[0] eq "ALLAMENDMENTS") { &AllAmendments; }
-if ($ARGV[0] eq "UPDATE" || $ARGV[0] eq "ALLSESSION2") { GovDBOpen(); UpdateBills($ARGV[1], $ARGV[0] eq "ALLSESSION2"); DBClose(); }
 
 1;
 
@@ -396,6 +395,10 @@ sub GovGetBill {
 
 		# BACKUP TITLE
 		} elsif ($cline =~ /<B>(Latest )?Title:<\/B> ([\w\W]+)/i) {
+			if ($2 =~ /Reserved for the /) {
+				print "parsing bill $BILLTYPE$SESSION-$BILLNUMBER: Skipping bill 'Reserved for ...'";
+				return;
+			}
 			$backup_title = ['official', 'introduced', HTMLify($2)];
 
 		# ACTIONS

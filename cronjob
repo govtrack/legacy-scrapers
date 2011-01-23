@@ -77,27 +77,20 @@ sub DoNoonGather {
 
 sub DoIndex {
 	# INDEXES
-
-	print "Indexing CR\n";
-	require "indexcr.pl";
-	eval {
-		MakeCRIndex($session);
-	};
-	if ($@) { warn $@; }
-	print "Done Indexing CR\n";
-
-	#if ($Weekly) {
-		# REP STATS
-		print "RepStats\n";
-		require "repstat.pl";
-		DoRepStats($session);
-		print "Done RepStats\n";
 	
-		# SUMMARY
-		print "StatsSummary\n";
-		require "statsummary.pl";
-		DoStatsSummary($session);
-	#}
+	# NEW STATS
+	system("python ../analysis/sponsorshipanalysis.py $session");
+
+	# REP STATS
+	print "RepStats\n";
+	require "repstat.pl";
+	DoRepStats($session);
+	print "Done RepStats\n";
+	
+	# SUMMARY
+	print "StatsSummary\n";
+	require "statsummary.pl";
+	DoStatsSummary($session);
 	
 	# LUCENE
 	

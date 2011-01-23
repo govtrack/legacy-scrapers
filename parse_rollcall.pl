@@ -11,6 +11,7 @@ if (-e '../gis/loaddistricts_109.pl') {
 	require "../gis/loaddistricts_109.pl";
 	require "../gis/loaddistricts_110.pl";
 	require "../gis/loaddistricts_111.pl";
+	require "../gis/loaddistricts_112.pl";
 } else {
 	print STDERR "Not loading GIS module...\n";
 	$SkipMaps = 1;
