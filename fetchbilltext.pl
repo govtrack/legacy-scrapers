@@ -591,6 +591,8 @@ sub CreateGeneratedBillTexts {
 				my $status2 = $statuses[$j];
 				my $g2 = "$textdir/$type/$type$number$status2.gen.html";
 				if (!-e $g2) { next; }
+				mkdir "$cmpdir";
+				mkdir "$cmpdir/$type";
 				my $outfile = "$cmpdir/$type/$type${number}_$status1-$status2.xml";
 				if ($onlythisbill eq "" && -e $outfile) { next; }
 				if ($onlythisbill eq "ALL" && -e $outfile && (-M $outfile) < 2) { next; }

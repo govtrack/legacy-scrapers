@@ -4,7 +4,6 @@ require "db.pl";
 require "general.pl";
 require "persondb.pl";
 
-$FIRSTSESSION = 93;
 $SESSION = $ARGV[0];
 if (!$SESSION) { die; }
 
@@ -19,10 +18,8 @@ if (!$testing) {
 
 $xml = $XMLPARSER->parse_string("<committees/>");
 
-GetThomasNames();
 GetSenateCommittees();
 GetHouseCommittees();
-AddMissingRecords();
 
 DBClose();
 
@@ -30,32 +27,6 @@ if (!$testing) {
 	$xml->toFile("../data/us/$SESSION/committees.xml", 1);
 } else {
 	print $xml->toString(1);
-}
-
-sub GetThomasNames {
-	# Get the names Thomas uses for committees.
-	for my $session ($FIRSTSESSION..$SESSION) {
-		my $sessionurl = sprintf("%03d", $session);
-		
-		print "Getting THOMAS committee list for $session.\n";
-		my ($content, $mtime) = Download("http://thomas.loc.gov/bss/d${sessionurl}query.html");
-		if (!$content) { return; }
-		my $html = "" . $content;
-		
-		my $cct = 0;
-		while ($html =~ /<option value="\s*([^">]*)\{([hs])([a-z]+)([0-9]+)\}">-*.*<\/option>/g) {
-			my ($name, $ch, $id, $subid) = ($1, $2, $3, $4);
-			$name =~ s/  +/ /g;
-			if ($subid == 0) {
-				$Committee{"$ch$id"}{$session}{thomasname} = $name;
-			} else {
-				$Committee{"$ch$id"}{$session}{subs}{int($subid)}{thomasname} = $name;
-			}
-			$cct++;
-		}
-		
-		if ($cct == 0) { print "No committees found!\n"; }
-	}
 }
 
 sub GetSenateCommittees {
@@ -74,17 +45,12 @@ sub GetSenateCommittees {
 			$name = "Senate $name";
 		}
 	
-		if ($name =~ /Commission/) { next; }
-	
 		print "$name\n";
 	
-		my $thomasname = $Committee{lc($code)}{$SESSION}{thomasname};
-		if ($thomasname eq "") { print " Thomas Name not found ($code).\n"; }
 		$Committee{lc($code)}{covered} = 1;
 	
 		my $cxml = AddXmlNode($xml->documentElement, 'committee',
 			type => lc($ctype), code => $code, displayname => $name);
-		AddCommitteeNames($cxml, $code);
 	
 		my ($html2, $mtime2) = Download('http://www.senate.gov/general/committee_membership/committee_memberships_' . $code . '.htm');
 		if (!$html2) { die; }
@@ -97,9 +63,7 @@ sub GetSenateCommittees {
 			$cxml->setAttribute('url', $url);
 		}
 	
-		if ($thomasname eq "") { $thomasname = $name; } # fallback
-		else { $thomasname = "$ctype $thomasname"; }
-		DBInsert(committees, id => $code, type => lc($ctype), displayname => $name, thomasname => $thomasname, url => $url) if (!$testing);
+		DBInsert(committees, id => $code, type => lc($ctype), displayname => $name, url => $url) if (!$testing);
 	
 		my @lines = split(/\r?\n/, $html2);
 		my $subcode = $code;
@@ -122,13 +86,9 @@ sub GetSenateCommittees {
 				$subname =~ s/^(Permanent )?Subcommittee on //;
 				$subname =~ s/  / /g;
 				print "  $subname\n";
-				my $thomasnamesub = $Committee{lc($code)}{$SESSION}{subs}{$subid}{thomasname};
-				#if ($thomasnamesub eq "") { print "    Thomas Name not found ($subcode).\n"; }
 				$scxml = AddXmlNode($cxml, 'subcommittee', code => $subid, displayname => $subname);
-				AddCommitteeNames($scxml, $code, $subid);
 	
-				if ($thomasnamesub eq "") { $thomasnamesub = $subname; } # fallback
-				DBInsert(committees, id => $subcode, parent => $code, displayname => $subname, thomasname => $thomasnamesub) if (!$testing);
+				DBInsert(committees, id => $subcode, parent => $code, displayname => $subname) if (!$testing);
 	
 				next;
 			}
@@ -209,20 +169,14 @@ sub GetHouseCommittees {
 		if ($housecode eq 'HM0') { $ourcode = 'HSHM'; }
 		if ($housecode eq 'HIG') { $ourcode = 'HLIG'; }
 	
-		my $thomasname = $Committee{lc($ourcode)}{$SESSION}{thomasname};
-		if ($thomasname eq "") { print " Thomas Name not found ($ourcode).\n"; }
-		
 		my $cxml;
 		if (!$Committee{lc($ourcode)}{covered}) {
 			$Committee{lc($ourcode)}{covered} = 1;
 	
 			$cxml = AddXmlNode($xml->documentElement, 'committee',
 				type => lc($ctype), code => $ourcode, displayname => $name);
-			AddCommitteeNames($cxml, $ourcode);
 			
-			if ($thomasname eq "") { $thomasname = $name; } # fallback
-			else { $thomasname = "$ctype $thomasname"; }
-			DBInsert(committees, id => $ourcode, type => lc($ctype), displayname => $name, thomasname => $thomasname, url => undef) if (!$testing);
+			DBInsert(committees, id => $ourcode, type => lc($ctype), displayname => $name, url => undef) if (!$testing);
 		} else {
 			# for joint committees, get the node from the senate
 			($cxml) = $xml->documentElement->findnodes("committee[\@code='$ourcode']");
@@ -265,13 +219,9 @@ sub GetHouseCommittees {
 				$ccode = $ourcode . $scid;
 				$subname = $subcomnames{$scid};
 
-				my $thomasnamesub = $Committee{lc($ourcode)}{$SESSION}{subs}{$scid}{thomasname};
-				#if ($thomasnamesub eq "") { print "    Thomas Name not found ($ourcode$scid).\n"; }
 				$scxml = AddXmlNode($cxml, 'subcommittee', code => $scid, displayname => $subname);
-				AddCommitteeNames($scxml, $ourcode, $scid);
 	
-				if ($thomasnamesub eq "") { $thomasnamesub = $subname; } # fallback
-				DBInsert(committees, id => "$ourcode$scid", parent => $ourcode, displayname => $subname, thomasname => $thomasnamesub) if (!$testing);
+				DBInsert(committees, id => "$ourcode$scid", parent => $ourcode, displayname => $subname) if (!$testing);
 			}
 
 			my @lines = split(/[\n\r]+/, $html2);
@@ -328,37 +278,6 @@ sub GetHouseCommittees {
 	}
 }
 
-sub AddMissingRecords {
-	# then add records that we saw on Thomas but not on the Senate/House sites (cause House took ages to update at the start of 2007)
-	foreach my $code (keys(%Committee)) {
-		if ($Committee{$code}{covered}) { next; }
-		
-		my $ctype;
-		if ($code =~ /^h/) { $ctype = 'House'; } else { $ctype = 'Senate'; }
-		
-		my $cname;
-		for my $session ($FIRSTSESSION..$SESSION) {
-			if ($Committee{$code}{$session}{thomasname} ne "") {
-				$cname = $Committee{$code}{$session}{thomasname};
-			}
-		}
-	
-		my $displayname = $ctype . " Committee on " . $cname;
-		
-		my $cxml = AddXmlNode($xml->documentElement, 'committee',
-			type => lc($ctype), code => uc($code), displayname => $displayname);
-		AddCommitteeNames($cxml, uc($code));
-		
-		if (!$Committee{$code}{$SESSION}{thomasname}) {
-			$cxml->setAttribute("obsolete", "1");
-		} else {
-			DBInsert(committees, id => uc($code), type => lc($ctype),
-				displayname => $displayname, thomasname => $Committee{$code}{$SESSION}{thomasname})
-				     if (!$testing);
-		}
-	}
-}
-
 sub AddXmlNode {
 	my $parent = shift;
 	my $name = shift;
@@ -375,28 +294,3 @@ sub AddXmlNode {
 	return $node;
 }
 
-sub AddCommitteeNames {
-	my $cxml = shift;
-	my $code = shift;
-	my $subid = shift;
-	
-	my $ctype;
-	if ($code =~ /^J/) { return; } # no Thomas names for joint committees
-	if ($code =~ /^H/) { $ctype = 'House'; } else { $ctype = 'Senate'; }
-
-	my $names = $cxml->ownerDocument->createElement("thomas-names");
-	
-	my $first = 1;
-	for my $session ($FIRSTSESSION..$SESSION) {
-		my $tname;
-		if (!$subid) { $tname = $Committee{lc($code)}{$session}{thomasname}; }
-		else { $tname = $Committee{lc($code)}{$session}{subs}{int($subid)}{thomasname}; }
-		if ($tname eq '') { next; }
-		if (!$subid) { $tname = $ctype . " " . $tname; }
-		my $namenode = $cxml->ownerDocument->createElement("name");
-		$namenode->setAttribute('session', $session);
-		$names->appendChild($namenode);
-		$namenode->appendText($tname);
-		if ($first) { $cxml->appendChild($names); $first = 0; } # add the first time we see a name
-	}
-}

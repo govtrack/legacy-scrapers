@@ -19,8 +19,8 @@ if ($ARGV[0] eq "COMMITTEESCHEDULE") {
 sub FetchCommitteeSchedule {
 	my $SESSION = SessionFromDateTime(Now());
 	
-	my $committeedata = $XMLPARSER->parse_file("../data/us/$SESSION/committees.xml");
-	foreach my $n ($committeedata->findnodes("committees/committee/thomas-names/name[\@session=$SESSION]")) {
+	my $committeedata = $XMLPARSER->parse_file("../data/us/committees.xml");
+	foreach my $n ($committeedata->findnodes("committees/committee[count(\@obsolete)=0]/thomas-names/name[\@session=$SESSION]")) {
 		$CommitteeId{$n->textContent} = $n->parentNode->parentNode->getAttribute('code');
 	}
 	$CommitteeId{'Joint Economic Committee'} = 'JSEC';
@@ -110,7 +110,7 @@ sub FetchHouseCommitteeSchedule {
 				my $date = ParseDateTime("$month $day, $year $tme");
 				$desc =~ s/<[\w\W]+?>//g;
 				$desc =~ s/^(\w)/uc($1)/e;
-				AddCommittee($date, "House $cmte", undef, $desc, "h", $xml);
+				AddCommittee(undef, $date, "House $cmte", undef, $desc, "h", $xml);
 			}
 		}
 	}
@@ -127,6 +127,9 @@ sub FetchSenateCommitteeSchedule {
 	
 	my $doc = $XMLPARSER->parse_string($content);
 	for my $n ($doc->findnodes('css_meetings_scheduled/meeting[not(cmte_code="")]')) {
+		my $cid = $n->findvalue('cmte_code');
+		$cid =~ s/([A-Z])0+$/$1/;
+		
 		my $committee = $n->findvalue('committee[position()=1]');
 		my $subcommittee = $n->findvalue('sub_cmte[position()=1]');
 		my $date = ParseDateTime($n->findvalue('date'));
@@ -147,27 +150,22 @@ sub FetchSenateCommitteeSchedule {
 		$topic =~ s/\s{2,}/ /g;
 		$topic =~ s/\&quot;/"/g;
 
-		AddCommittee($date, $committee, $subcommittee, $topic, "s", $xml, join("|", @topics));
+		AddCommittee($cid, $date, $committee, $subcommittee, $topic, "s", $xml, join("|", @topics));
 	}
 }
 
 sub AddCommittee {
-	my ($date, $comm, $sub, $topic, $where, $xml, $docstring) = @_;
+	my ($cid, $date, $comm, $sub, $topic, $where, $xml, $docstring) = @_;
 
 	$comm =~ s/^Senate Intelligence/Senate Intelligence (Select)/;
 	$comm =~ s/ \s+/ /g;
 	$sub =~ s/ \s+/ /g;
 	
-	my $cid = $CommitteeId{$comm};
-	if (!defined($cid)) {
-		$cid = $CommitteeId{"$comm (Special)"};
-	}
-	
-	if (!defined($cid)) {
-		print " parse_committeeschedule: unknown committee $comm\n";
-	} elsif ($sub ne "") {
-		my ($scid) = DBSelectFirst(committees, [id], [DBSpecEQ(parent, $cid), DBSpecEQ(thomasname, $sub)]);
-		print " parse_committeeschedule: unknown subcommittee $comm: $sub\n";
+	if (!$cid) {
+		$cid = $CommitteeId{$comm};
+		if (!defined($cid)) {
+			$cid = $CommitteeId{"$comm (Special)"};
+		}
 	}
 	
 	if ($sub ne "") { $comm .= " -- $sub"; }
@@ -178,6 +176,7 @@ sub AddCommittee {
 	my $node = $xml->createElement('meeting');
 	$xml->documentElement->appendChild($node);
 
+	$node->setAttribute("committee-id", $cid);
 	$node->setAttribute("datetime", $date);
 	$node->setAttribute("where", $where);
 	$node->setAttribute("committee", $comm);

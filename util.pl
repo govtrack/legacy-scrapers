@@ -679,7 +679,7 @@ sub Download {
 		return ($data, $mtime);
 	}
 	
-	sleep(1);
+	if (rand() < .1) { sleep(1); } # throttle a little
 	if ($ENV{URLS}) { print "$URL\n"; }
 	my $response;
 	if (!$opts{post}) {

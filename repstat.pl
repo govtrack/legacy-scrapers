@@ -133,30 +133,6 @@ sub GetPeopleList {
 				print $PEOPLE " />\n";
 			}
 		
-			# Put current committee assignments into the CURRENT file only.
-			# But when regenerating past files, don't put it in.
-			if ($PEOPLE eq 'PEOPLE_CURRENT' && !-e ("../data/us/" . ($session+1))) {
-			my @comms = DBSelect(people_committees, [committeeid, role], ["personid=$rep{id}"]);
-			foreach my $comm (@comms) {
-				my ($cid, $role) = @{ $comm };
-				my ($cname, $cparent) = DBSelectFirst(committees, [thomasname, parent], ["id='$cid'"]);
-				my $csname = "";
-				if ($cparent ne "") {
-					$csname = $cname;
-					($cname) = DBSelectFirst(committees, [thomasname], ["id='$cparent'"]);
-
-					if ($cid !~ /^([A-Z]+)(\d+)$/) { die; }
-					$cid = "$1-$2";
-				}
-				foreach my $x ($cname, $csname) { $x = htmlify($x, 1); }
-				print $PEOPLE "\t\t<committee-assignment code=\"$cid\"";
-				print $PEOPLE " committee='$cname'";
-				print $PEOPLE " subcommittee='$csname'" if ($csname ne "");
-				print $PEOPLE " role='$role'" if ($role ne "");
-				print $PEOPLE " />\n";
-			}
-			}
-			
 			print $PEOPLE "\t</person>\n";
 		}
 	}
