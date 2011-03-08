@@ -21,6 +21,8 @@ my $debug = 1;
 
 my @referencedbills;
 
+if ($ENV{OUTPUT_ERRORS_ONLY}) { $OUTPUT_ERRORS_ONLY = 1; }
+
 if ($ARGV[0] eq "PARSE_ROLL") { &DoCommandLine; }
 if ($ARGV[0] eq "GET_ROLLS") { &DownloadRollCallVotesAll($ARGV[1], 0, $ARGV[2], $ARGV[3]); }
 if ($ARGV[0] eq "REMAP_VOTES") { &RemapVotes }
@@ -464,7 +466,7 @@ sub GetHouseVote {
 	else { undef $amendment; }
 
 	my $result = $votexml->findvalue('vote-metadata/vote-result');
-	if ($result ne "Passed" && $result ne "Failed" && $result ne "Agreed to") { 
+	if ($result ne "Passed" && $result ne "Failed" && $result ne "Agreed to" && $votexml->findvalue('vote-metadata/vote-question') ne "Election of the Speaker") { 
 		warn "Roll call isn't a pass/fail vote '$result' in $URL";
 	}
 
@@ -552,6 +554,12 @@ sub WriteRoll {
 	my $nv = scalar(@{$votes{'Not Voting'}});
 	my $pr = scalar(@{$votes{Present}});
 	
+	$TYPE =~ s/^\s+//;
+	$TYPE =~ s/\s+$//;
+	$QUESTION =~ s/^\s+//;
+	$QUESTION =~ s/\s+$//;
+	($TYPE, $TYPE_CAT) = normalize_vote_type($TYPE, $QUESTION);
+	
 	$TYPE = htmlify($TYPE);
 	$QUESTION = htmlify($QUESTION);
 	$REQUIRED = htmlify($REQUIRED);
@@ -568,6 +576,7 @@ sub WriteRoll {
 	print ROLL "<roll where=\"$where\" session=\"$SESSION\" year=\"$YEAR\" roll=\"$ROLL\" source=\"$source\"\n";
 	print ROLL "\tdatetime=\"$datetime\" updated=\"$mtime\"\n";
 	print ROLL "\taye=\"$aye\" nay=\"$nay\" nv=\"$nv\" present=\"$pr\">\n";
+	print ROLL "\t<category>$TYPE_CAT</category>\n";
 	print ROLL "\t<type>$TYPE</type>\n";
 	print ROLL "\t<question>$QUESTION</question>\n";
 	print ROLL "\t<required>$REQUIRED</required>\n";
@@ -641,7 +650,9 @@ sub WriteRoll {
 	if (!$ENV{NOMAP} && !$SkipMaps) { MakeVoteMap($SESSION, $id); }
 
 	if (defined($BILL)) {
-		push @referencedbills, $BILL;
+		if (!$ENV{NOBILLS}) {
+			push @referencedbills, $BILL;
+		}
 	} elsif (defined($AMENDMENT)) {
 		warn "Amendment without bill reference in $fn";
 	}
@@ -1066,4 +1077,96 @@ sub SplitPoly2 {
 	push @polys, [@newpoly];
 
 	return [@polys];
+}
+
+sub normalize_vote_type {
+	my ($type, $question) = @_;
+
+	if ($type eq "Call of the House") {
+		if ($question eq "Call of the House: QUORUM") {
+			return ("Quorum Call", "Procedural");
+		} else {
+			warn "Unhandled vote type: $type: $question";
+			return ($type, "Procedural");
+		}
+		
+	} elsif ($type eq "On Passage" || $type eq "On Passage of the Bill") {
+		return ("On Passage of the Bill", "passage");
+	} elsif ($type =~ s/^On (Agreeing to )?(Article \S+ of )?the (Concurrent |Joint )?Resolution(, As Amended)?$/On the $3Resolution/i) {
+		if ($2) { $type .= " (Part)"; }
+		return ($type, "passage-part");
+	} elsif ($type =~ /^(On Motion to )?(Concur in|Agree to|On Agreeing to) (the )?Senate (Amendment|amdt|Adt)s?( with an Amendment|with Amendment.*|to House (Amendment|Adt).*)?$|^Concurring|^On Concurring|Concur in (the )?Senate (Amdt|Amendment)|Concur In /i) {
+		return ("On the Senate Amendment", "passage");
+	} elsif ($type =~ /^(On Motion to )?Suspend ((the )?Rules )?and (Agree|Pass|Concur in the Senate Amendment|Agree to Senate Amendments?|Agree to S Adt to House Adts)(, As Amended)?$/i) {
+		return ("On Motion to Suspend the Rules and $4$5", "passage-suspension");
+	} elsif ($type =~ s/^(On )?(Agree to |Agreeing to |Motion to Suspend the Rules and Agree to )?the Senate Amendment( with Amendment .*)?$/On the Senate Amendment/) {
+		return ($type, "passage");
+	} elsif ($type =~ s/^On (Agreeing to |Motion to Suspend the Rules and Agree to )?the Conference Report$/On the Conference Report/) {
+		return ($type, "passage");
+	} elsif ($type =~ s/^On (Agreeing to )?the Amendments?(, as Modified)?$/On the Amendment/) {
+		return ($type, "amendment");
+	} elsif ($type =~ s/^On (Agreeing to )?the En Bloc Amendments(, as Modified)?$/On the En Bloc Amendments/) {
+		return ($type, "amendment");
+	} elsif ($type eq "On the Nomination") {
+		return ($type, "nomination");
+	} elsif ($type =~ /(On )?Passage( of the Bill)?, (the )?Objections of the President Not ?[Ww]ithstanding/) {
+		return ("On Overriding the Veto", "veto-override");
+	} elsif ($type =~ /On Overriding the Veto/) {
+		return ("On Overriding the Veto", "veto-override");
+
+	# keep these
+	} elsif ($type eq "Election of the Speaker") {
+		return ($type, "procedural");
+	} elsif ($type =~ s/^(On )?Ordering (the )?Previous Question.*/On Ordering the Previous Question/) {
+		return ($type, "procedural");
+	} elsif ($type =~ s/^((On )?(the )?Motion to )?Table( (the )?(Motion to Reconsider|Appeal|Appeal of the Ruling of the Chair|Amendment|Resolution|Motion to Recommit))?$/On Motion to Table/i) {
+		return ($type, "procedural");
+	} elsif ($type =~ /^(On )?Motion to Refer( the Resolution)?$/) {
+		return ("On Motion to Refer", "procedural");
+	} elsif ($type =~ s/^(On Motion to Commit)( with Instructions)?$/$1/ || $type =~ s/(On (the )?Motion to )?Recommit( Conference Report)?( with Instructions)?/On the Motion to Recommit/) {
+		return ($type, "procedural");
+	} elsif ($type =~ /On (.*)Motion to Instruct Conferees/) {
+		return ("On Motion to Instruct Conferees", "procedural");
+	} elsif ($type eq "On Approving the Journal") {
+		return ($type, "procedural");
+	} elsif ($type eq "On the Motion") {
+		return ($type, "procedural");
+	} elsif ($type eq "Will the House Now Consider the Resolution"
+		|| $type =~ /On (Question of )?Consideration of (the )?(Bill|Resolution|Conference Report)/) {
+		return ("On Question of Consideration", "procedural");
+	} elsif ($type eq "On Motion to Adjourn" || $type eq "On the Motion to Adjourn") {
+		return ("On the Motion to Adjourn", "procedural");
+	} elsif ($type eq "On the Cloture Motion" || $type eq "On Cloture on the Motion to Proceed") {
+		return ("On the Cloture Motion", "cloture");
+	} elsif ($type eq "On the Motion to Proceed") {
+		return ($type, "procedural");
+	} elsif ($type =~ /On (the )?Motion to Reconsider/) {
+		return ("On the Motion to Reconsider", "procedural");
+	} elsif ($type eq "Authorizing Conferees to Close Meetings" || $type eq "On Motion to Authorize Conferees to Close Conference") {
+		return ("On Motion to Authorize Conferees to Close Conference", "procedural");
+	} elsif ($type =~ /On Motion that the Committee Rise/i) {
+		return ($type, "procedural");
+	} elsif ($type eq "On the Point of Order") {
+		return ($type, "procedural");
+	} elsif ($type eq "Sustaining the Ruling of the Chair") {
+		return ($type, "procedural");
+
+	} elsif ($type eq "Guilty or Not Guilty") {
+		return ($type, "conviction");
+	} elsif ($type eq "On the Resolution of Ratification") {
+		return ($type, "ratification");
+		
+	# not sure
+	} elsif ($type =~ /^(On Adoption of the )?\S+ (portion of the divided question)(( \[|, ).*)?$/i) {
+		return ("On Part of the Divided Question", "other");
+		
+	} elsif ($type eq "Amendment to Title") {
+		return ($type, "other");
+	} elsif ($type =~ /^Article \S+$/) {
+		return ("Article ___", "other");
+
+	} else {
+		warn "Unhandled vote type: $type";
+		return ($type, "unknown");
+	}
 }

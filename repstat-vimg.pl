@@ -8,8 +8,10 @@ if (!$session) { die "specify session"; }
 
 $indir = "../../data/us/$session/repstats.person";
 $outdir = "../../data/us/$session/repstats/images/people";
+$outdir2 = "../../data/us/$session/stats/person/missedvotes";
 
 system("mkdir -p $outdir");
+system("mkdir -p $outdir2");
 
 # Compute some percentiles for each time period.
 
@@ -138,7 +140,13 @@ sub DrawGraph {
 			binmode IMG;
 			print IMG $gd->png;
 			close(IMG);
-		
+
+			if ($filename eq "votes") {
+			open(IMG, ">$outdir2/$pid$thumb.png") or die $graph->error;
+			binmode IMG;
+			print IMG $gd->png;
+			close(IMG);
+			}
 		}
 	}
 }

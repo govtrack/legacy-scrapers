@@ -113,7 +113,8 @@ sub GetSenateCommittees {
 					   if (!$testing);
 				$afterMain = 1;
 	
-				AddXmlNode($scxml, 'member', name => "$f $l", id => $pid, role => $p);
+				AddXmlNode($scxml, 'member', id => $pid, role => $p);
+					#name => "$f $l",
 			} elsif ($line =~ s/^\s+(<\/td>)?<td valign="top" nowrap>//) {
 				foreach my $x (split(/<br>/, $line)) {
 					if ($x !~ /(.*?)\s+\((\w\w)\)(, <position>(.*?)<\/position>)?/) { warn $x; next; }
@@ -134,11 +135,34 @@ sub GetSenateCommittees {
 						senatecode => ($subname eq '' ? $code : "$code-$subctr"))
 						    if (!$testing);
 	
-					AddXmlNode($scxml, 'member', name => "$pname", id => $pid, role => $position);
+					AddXmlNode($scxml, 'member', id => $pid, role => $position);
+						###name => "$pname",
 				}
 				$afterMain = 1;
 			}
 		}
+	}
+}
+
+sub GetHouseCommittees_Alt {
+	for my $c ($XMLPARSER->parse_file("../data/us/committees.xml")->findnodes("committees/committee[not(\@type='senate') and not(\@obsolete='1')]")) {
+		my $housecode = $c->getAttribute('code');
+		if ($housecode eq 'JSEC') { $housecode = 'JEC'; }
+		if ($housecode eq 'JSLC') { $housecode = 'HJL'; }
+		if ($housecode eq 'JSPR') { $housecode = 'HJP'; }
+		if ($housecode eq 'JSTX') { $housecode = 'HIT'; }
+		if ($housecode eq 'HSHM') { $housecode = 'HHM'; }
+		if ($housecode eq 'HLIG') { $housecode = 'HIG'; }
+		
+		$housecode =~ s/^HS/H/;
+
+		if ($housecode eq "JCSE" || $housecode eq "HGW") { next; }
+		
+		GetHouseCommittees2(
+			$c->getAttribute('displayname'),
+			$housecode,
+			$c->getAttribute('code'),
+			$c->getAttribute('type'));
 	}
 }
 
@@ -156,9 +180,7 @@ sub GetHouseCommittees {
 		} elsif ($name !~ /^House/) {
 			$name = "House $name";
 		}
-		
-		print "$name\n";
-		
+
 		my $ourcode = $housecode;
 		$ourcode =~ s/^H/HS/;
 
@@ -169,6 +191,15 @@ sub GetHouseCommittees {
 		if ($housecode eq 'HM0') { $ourcode = 'HSHM'; }
 		if ($housecode eq 'HIG') { $ourcode = 'HLIG'; }
 	
+		GetHouseCommittees2($name, $housecode, $ourcode, $ctype);
+	}
+}
+
+sub GetHouseCommittees2 {
+		my ($name, $housecode, $ourcode, $ctype) = @_;
+		
+		print "$ourcode $housecode $name\n";
+		
 		my $cxml;
 		if (!$Committee{lc($ourcode)}{covered}) {
 			$Committee{lc($ourcode)}{covered} = 1;
@@ -182,8 +213,10 @@ sub GetHouseCommittees {
 			($cxml) = $xml->documentElement->findnodes("committee[\@code='$ourcode']");
 		}
 		
+		print 'http://clerk.house.gov/committee_info/index.html?comcode=' . $housecode . '00' . "\n";
 		my ($html2, $mtime2) = Download('http://clerk.house.gov/committee_info/index.html?comcode=' . $housecode . '00');
-		if (!$html2) { die; }
+		if (!$html2) { die $housecode; }
+		if ($html2 !~ /Committee on|Joint Economic/) { die $housecode; }
 		
 		# cleanup for bad line format in joint committee pages
 		$html2 =~ s/(mem_contact_info[^>]+>)\s+/$1/g;
@@ -213,6 +246,7 @@ sub GetHouseCommittees {
 			} else {
 				# fetch info for this subcommittee
 
+				print 'http://clerk.house.gov/committee_info/index.html?subcomcode=' . $housecode . $scid . "\n";
 				($html2, $mtime2) = Download('http://clerk.house.gov/committee_info/index.html?subcomcode=' . $housecode . $scid);
 				if (!$html2) { die; }
 
@@ -254,12 +288,12 @@ sub GetHouseCommittees {
 					
 					if ($statedist !~ /([A-Z]{2})([0-9]{2})/) { die "State/district $statedist"; }
 					my $state = $1;
-					my $dist = $2;
+					my $dist = int($2);
 					
 					
 					my $pid = PersonDBGetID(name => $pname, title => "rep", state => "$state", district => $dist, when => "now", nameformat => 'firstlast');
 					if ($pname eq "Mary Bono Mack") { $pid = 400039; }
-					if (!$pid) { warn "Unknown person: $pname ($statedist)"; next; }
+					if (!$pid) { die "Unknown person: $pname ($state|$dist)"; next; }
 		
 					DBInsert(people_committees,
 						personid => $pid,
@@ -270,12 +304,11 @@ sub GetHouseCommittees {
 						role => $position)
 						   if (!$testing);
 		
-					AddXmlNode($scxml, 'member', name => $pname, id => $pid, role => $position);
+					AddXmlNode($scxml, 'member', id => $pid, role => $position);
+						##name => $pname,
 				}
 			}
 		}
-		
-	}
 }
 
 sub AddXmlNode {

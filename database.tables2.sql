@@ -2,7 +2,7 @@
 --
 -- Host: localhost    Database: govtrack
 -- ------------------------------------------------------
--- Server version	5.1.41-3ubuntu12.9
+-- Server version	5.1.41-3ubuntu12.10
 
 /*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
 /*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
@@ -211,7 +211,7 @@ CREATE TABLE `questions` (
   PRIMARY KEY (`id`),
   KEY `question` (`question`),
   KEY `topic` (`topic`(16))
-) ENGINE=MyISAM AUTO_INCREMENT=39319 DEFAULT CHARSET=utf8;
+) ENGINE=MyISAM AUTO_INCREMENT=39778 DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -247,4 +247,4 @@ CREATE TABLE `votes` (
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2011-02-13 10:07:16
+-- Dump completed on 2011-03-08 12:37:26

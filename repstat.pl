@@ -37,7 +37,7 @@ sub GetPeopleList {
 	my $session = shift;
 
 	# WRITE OUT PERSON DATABASE GENERAL INFO
-	my @reps = DBSelect(HASH, people, [id, firstname, middlename, lastnameenc, namemod, nickname, birthday, gender, religion, pvsid, osid, bioguideid, metavidid, youtubeid], []);
+	my @reps = DBSelect(HASH, people, [id, firstname, middlename, lastnameenc, namemod, nickname, birthday, gender, religion, pvsid, osid, bioguideid, metavidid, youtubeid, twitterid], []);
 
 	open PEOPLE_ALL, ">../data/us/people.xml";
 	binmode(PEOPLE_ALL, ":utf8");
@@ -104,13 +104,14 @@ sub GetPeopleList {
 			print $PEOPLE " bioguideid='$rep{bioguideid}'" if $rep{bioguideid} ne "";
 			print $PEOPLE " metavidid='$rep{metavidid}'" if $rep{metavidid} ne "";
 			print $PEOPLE " youtubeid='$rep{youtubeid}'" if $rep{youtubeid} ne "";
+			print $PEOPLE " twitterid='$rep{twitterid}'" if $rep{twitterid} ne "";
 			print $PEOPLE " name='$Person{$rep{id}}{NAME}'";
 			print $PEOPLE $Person{$rep{id}}{CUR_INFO};
 			print $PEOPLE " >\n";
 
 			# For the ALL file put in all roles in ascending order.
 			# For the CURRENT file just put in roles this session (could be more than one).
-			my @roles = DBSelect(people_roles, [type, startdate, enddate, party, state, district, class, url],
+			my @roles = DBSelect(people_roles, [type, startdate, enddate, party, state, district, class, url, address],
 				["personid=$rep{id}",
 					($PEOPLE eq 'PEOPLE_CURRENT' ? "startdate<='" . EndOfSessionYMD($session) . "'" : 1),
 					($PEOPLE eq 'PEOPLE_CURRENT' ? "enddate>='" . StartOfSessionYMD($session) . "'" : 1),
@@ -129,6 +130,7 @@ sub GetPeopleList {
 				print $PEOPLE " district='$role[5]'" if ($role[0] eq 'rep');
 				print $PEOPLE " class='$role[6]'" if ($role[0] eq 'sen');
 				print $PEOPLE " url='$role[7]'" if $role[7] ne "";
+				print $PEOPLE " address='$role[8]'" if $role[8] ne "";
 				print $PEOPLE " current='1'" if ($role[1] le DateToDBString(time) && $role[2] ge DateToDBString(time));
 				print $PEOPLE " />\n";
 			}

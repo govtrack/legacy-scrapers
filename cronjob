@@ -9,11 +9,8 @@ require "db.pl";
 @A = @ARGV;
 undef @ARGV;
 
-my $backdate = 1;
-if ($A[0] eq "DATE") { shift(@A); $backdate = shift(@A); }
-
-my $retdate = time - $backdate*60*60*24;
-my $session = SessionFromDateTime(DateToDBString($retdate));
+my $today = DateToDBString(time);
+my $session = SessionFromDateTime($today);
 
 print `date`;
 
@@ -37,11 +34,11 @@ DBClose();
 system("touch ../../website/style/master.xsl");
 
 sub DoEarlyGather {
-	my $isNoon = shift;
-
 	# Update any bills whose THOMAS summary changed.
 	require "parse_status.pl";
 	UpdateBills($session);
+	
+	RefreshBills($session, "not(starts-with(\@updated, '${today}T')) and count(subjects/*)=0");
 
 	# Get roll call votes
 	DownloadRollCallVotesAll(undef, 1, 1, 1);
@@ -55,7 +52,7 @@ sub DoEarlyGather {
 }
 
 sub DoNoonGather {
-	DoEarlyGather(1);
+	DoEarlyGather();
 
 	#require "parse_record.pl";
 	#GetCR('s', $retdate, 1);
@@ -92,10 +89,12 @@ sub DoIndex {
 	require "statsummary.pl";
 	DoStatsSummary($session);
 	
+	system("perl repstat-vimg.pl $session");
+	
 	# LUCENE
 	
 	print "Lucene\n";
-	system("lucene.sh $session");
+	system("sh lucene.sh $session");
 	
 	require "getpopularmonitors.pl";
 	GetPopularMonitors();

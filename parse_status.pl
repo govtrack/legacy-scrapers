@@ -1,4 +1,4 @@
-# for x in {111..100}; do echo $x; CACHED=1 SKIP_AMENDMENTS=1 perl parse_status.pl ALLSESSION $x; done
+# for x in {112..100}; do echo $x; CACHED=1 SKIP_AMENDMENTS=1 perl parse_status.pl ALL $x; done
 
 use Time::Local;
 use LWP::UserAgent;
@@ -426,16 +426,17 @@ sub GovGetBill {
 
 			# house vote
 			$what =~ s/, the Passed/, Passed/g; # 106 h4733 and others
-			if ($what =~ /(On passage|On motion to suspend the rules and pass the bill|On motion to suspend the rules and agree to the resolution|On motion to suspend the rules and pass the resolution|On agreeing to the resolution|On agreeing to the conference report|Two-thirds of the Members present having voted in the affirmative the bill is passed,?|On motion that the House agree to the Senate amendments?|On motion that the House suspend the rules and concur in the Senate amendments?|On motion that the House suspend the rules and agree to the Senate amendments?|On motion that the House agree with an amendment to the Senate amendments?)(, the objections of the President to the contrary notwithstanding.?)?(, as amended)? (Passed|Failed|Agreed to|Rejected) (by voice vote|without objection|by (the Yeas and Nays|recorded vote)((:)? \(2\/3 required\))?: \d+ - \d+(, \d+ Present)? [ \)]*\(Roll no\. \d+\))/i) {
+			if ($what =~ /(On passage|On motion to suspend the rules and pass the bill|On motion to suspend the rules and agree to the resolution|On motion to suspend the rules and pass the resolution|On agreeing to the resolution|On agreeing to the conference report|Two-thirds of the Members present having voted in the affirmative the bill is passed,?|On motion that the House agree to the Senate amendments?|On motion that the House suspend the rules and concur in the Senate amendments?|On motion that the House suspend the rules and agree to the Senate amendments?|On motion that the House agree with an amendment to the Senate amendments?|House Agreed to Senate Amendments.*?|Passed House)(, the objections of the President to the contrary notwithstanding.?)?(, as amended| \(Amended\))? (Passed|Failed|Agreed to|Rejected)? ?(by voice vote|without objection|by (the Yeas and Nays|Yea-Nay Vote|recorded vote)((:)? \(2\/3 required\))?: \d+ - \d+(, \d+ Present)? [ \)]*\((Roll no\.|Record Vote No:) \d+\))/i) {
 				my $motion = $1;
 				my $isoverride = $2;
 				my $asamended = $3;
 				my $passfail = $4;
 				my $how = $5;
+				if ($motion =~ /Passed House|House Agreed to/) { $passfail = 'Pass'; }
 				my $votetype;
 				my $roll = "";
 				
-				if ($passfail =~ /Pass/ || $passfail =~ /Agreed/) { $passfail = "pass"; }
+				if ($passfail =~ /Pass|Agreed/) { $passfail = "pass"; }
 				else { $passfail = "fail"; }
 				
 				if ($wasvetoed && $motion =~ /Two-thirds of the Members present/) {
@@ -447,7 +448,7 @@ sub GovGetBill {
 
 				if ($isoverride) {
 					$votetype = "override";
-				} elsif ($motion =~ /(agree (with an amendment )?to|concur in) the Senate amendment/) {
+				} elsif ($motion =~ /(agree (with an amendment )?to|concur in) the Senate amendment/i) {
 					$votetype = "pingpong";
 				} elsif ($motion =~ /conference report/) {
 					$votetype = "conference";
@@ -457,8 +458,8 @@ sub GovGetBill {
 					$votetype = "vote2";
 				}
 				
-				if ($what =~ /\(Roll no\. (\d+)\)/i) {
-					$roll = $1;
+				if ($what =~ /\((Roll no\.|Record Vote No:) (\d+)\)/i) {
+					$roll = $2;
 					$how = "roll";
 				}
 				
@@ -573,14 +574,14 @@ sub GovGetBill {
 				push @ACTIONS, [$action_state, 2, "vote", $what, { @axndateattrs, where => 'h', type => $votetype, result => $passfail, how => $how, roll => $roll, suspension => $suspension }, $STATE ];
 				
 			# senate vote
-			} elsif ($what =~ /(Passed Senate|Failed of passage in Senate|Resolution agreed to in Senate|Received in the Senate, considered, and agreed to|Submitted in the Senate, considered, and agreed to|Introduced in the Senate, read twice, considered, read the third time, and passed|Received in the Senate, read twice, considered, read the third time, and passed|Senate agreed to conference report|Cloture \S*\s?on the motion to proceed .*?not invoked in Senate|Cloture on the bill not invoked in Senate)(,?[\w\W]*,?) (without objection|by Unanimous Consent|by Voice Vote|by Yea-Nay( Vote)?\. \d+\s*-\s*\d+\. Record Vote (No|Number): \d+)/) {
+			} elsif ($what =~ /(Passed Senate|Failed of passage in Senate|Resolution agreed to in Senate|Received in the Senate, considered, and agreed to|Submitted in the Senate, considered, and agreed to|Introduced in the Senate, read twice, considered, read the third time, and passed|Received in the Senate, read twice, considered, read the third time, and passed|Senate agreed to conference report|Cloture \S*\s?on the motion to proceed .*?not invoked in Senate|Cloture on the bill not invoked in Senate|Senate agreed to House amendment|Senate concurred in the House amendment)(,?[\w\W]*,?) (without objection|by Unanimous Consent|by Voice Vote|by Yea-Nay( Vote)?\. \d+\s*-\s*\d+\. Record Vote (No|Number): \d+)/) {
 				my $motion = $1;
 				my $passfail = $1;
 				my $junk = $2;
 				my $how = $3;
 				my $roll = "";
 
-				if ($passfail =~ /Passed|agreed/i) { $passfail = "pass"; }
+				if ($passfail =~ /Passed|agreed|concurred/i) { $passfail = "pass"; }
 				else { $passfail = "fail"; }
 
 				my $votenode = 'vote';
@@ -592,6 +593,8 @@ sub GovGetBill {
 				} elsif ($motion =~ /Cloture/) {
 					$votenode = "vote-aux";
 					$votetype = "cloture";
+				} elsif ($motion =~ /Senate agreed to House amendment|Senate concurred in the House amendment/) {
+					$votetype = "pingpong";
 				} elsif ($BILLTYPE =~ /^s/) {
 					$votetype = "vote";
 				} else {
@@ -672,15 +675,15 @@ sub GovGetBill {
 					# A failed cloture vote is a provisional kill.
 					$STATE = ['PROV_KILL:CLOTUREFAILED', $when];
 				} elsif ($votetype eq "pingpong") {
-					# TODO: We don't parse pingpong votes in the Senate because I haven't seen
-					# an example.
 					# This is a motion to accept House amendments to the Senate's original bill.
 					# If the motion fails, I suppose it is a provisional kill. If it passes,
 					# then pingpong is over and the bill has passed both chambers.
-					if ($passfail eq 'pass') {
+					if ($passfail ne 'pass') {
+						$STATE = ['PROV_KILL:PINGPONGFAIL', $when];
+					} elsif ($what !~ /with an amendment/) {
 						$STATE = ['PASSED:BILL', $when];
 					} else {
-						$STATE = ['PROV_KILL:PINGPONGFAIL', $when];
+						$STATE = ['PASS_BACK:SENATE', $when];
 					}
 				} elsif ($votetype eq "conference") {
 					# This is tricky to integrate into state because we have to wait for both
