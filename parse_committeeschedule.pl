@@ -10,13 +10,14 @@ my $months = join("|", keys(%Months));
 
 if ($ARGV[0] eq "COMMITTEESCHEDULE") {
 	GovDBOpen();
-	FetchCommitteeSchedule();
+	FetchCommitteeSchedule($ARGV[1]);
 	DBClose();
 }
 
 1;
 
 sub FetchCommitteeSchedule {
+	my $dailydigest = shift;
 	my $SESSION = SessionFromDateTime(Now());
 	
 	my $committeedata = $XMLPARSER->parse_file("../data/us/committees.xml");
@@ -48,7 +49,7 @@ sub FetchCommitteeSchedule {
 	}
 
 	FetchSenateCommitteeSchedule($xml);
-	FetchHouseCommitteeSchedule($xml);
+	FetchHouseCommitteeSchedule($xml, $dailydigest);
 
 	$xml->toFile($sfile, 1);
 }
@@ -63,8 +64,11 @@ sub ClearChamberCommitteeMeetings {
 
 sub FetchHouseCommitteeSchedule {
 	my $xml = shift;
+	my $dailydigest = shift;
+	
+	if (!$dailydigest) { $dailydigest = "http://thomas.loc.gov/cgi-bin/dailydigest"; }
 
-	my ($content, $mtime) = Download("http://thomas.loc.gov/cgi-bin/dailydigest", nocache => 1);
+	my ($content, $mtime) = Download($dailydigest, nocache => 1);
 	if (!$content) { return; }
 
 	$content =~ s/:\n/: /g;
@@ -89,7 +93,7 @@ sub FetchHouseCommitteeSchedule {
 		#if ($line =~ /<center><strong>/) { last; }
 		if ($line =~ /Next Meeting/) { last; }
 		
-		if ($line =~ /<em>((Permanent )?Select )?Committee on (the )?([\w\W]+?)(,|:)?<\/em>/) {
+		if ($line =~ /<em>((Permanent )?Select )?Committee on (the )?([\w\W]+?)([,:;])?<\/em>/) {
 			my $typ = $1;
 			$typ =~ s/ $//;
 			
@@ -167,6 +171,7 @@ sub AddCommittee {
 			$cid = $CommitteeId{"$comm (Special)"};
 		}
 	}
+	if (!defined($cid)) { warn $comm; }
 	
 	if ($sub ne "") { $comm .= " -- $sub"; }
 	$comm = ToUTF8($comm);

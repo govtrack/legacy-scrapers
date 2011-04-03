@@ -1,3 +1,5 @@
+# for y in {2011..1989}; do CACHED=1 NOMAP=1 perl parse_rollcall.pl GET_ROLLS $y 0 no; done
+
 use Time::Local;
 use LWP::UserAgent;
 use GD;
@@ -38,7 +40,7 @@ sub DownloadRollCallVotesAll {
 	my $noopendb = shift;
 	my $skipifexists = shift;
 	my $forceindex = shift;
-	if (!defined($skipifexists)) { $skipifexists = 1; }
+	if (!defined($skipifexists) && !$ENV{CACHED}) { $skipifexists = 1; }
 	
 	if ($YEAR eq "") { $YEAR = YearFromDate(time); }
 	
@@ -1084,17 +1086,20 @@ sub normalize_vote_type {
 
 	if ($type eq "Call of the House") {
 		if ($question eq "Call of the House: QUORUM") {
-			return ("Quorum Call", "Procedural");
+			return ("Quorum Call", "procedural");
 		} else {
 			warn "Unhandled vote type: $type: $question";
-			return ($type, "Procedural");
+			return ($type, "procedural");
 		}
 		
 	} elsif ($type eq "On Passage" || $type eq "On Passage of the Bill") {
 		return ("On Passage of the Bill", "passage");
 	} elsif ($type =~ s/^On (Agreeing to )?(Article \S+ of )?the (Concurrent |Joint )?Resolution(, As Amended)?$/On the $3Resolution/i) {
-		if ($2) { $type .= " (Part)"; }
-		return ($type, "passage-part");
+		if ($2) {
+			$type .= " (Part)";
+			return ($type, "passage-part");
+		}
+		return ($type, "passage");
 	} elsif ($type =~ /^(On Motion to )?(Concur in|Agree to|On Agreeing to) (the )?Senate (Amendment|amdt|Adt)s?( with an Amendment|with Amendment.*|to House (Amendment|Adt).*)?$|^Concurring|^On Concurring|Concur in (the )?Senate (Amdt|Amendment)|Concur In /i) {
 		return ("On the Senate Amendment", "passage");
 	} elsif ($type =~ /^(On Motion to )?Suspend ((the )?Rules )?and (Agree|Pass|Concur in the Senate Amendment|Agree to Senate Amendments?|Agree to S Adt to House Adts)(, As Amended)?$/i) {

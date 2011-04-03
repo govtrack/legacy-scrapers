@@ -10,7 +10,7 @@ if ($ARGV[0] eq "THUMBS") {
 		system("wget -O ../data/photos/$ARGV[1].jpeg \"$ARGV[2]\"");
 	} else {
 		if ($pid eq "") {
-			if ($ARGV[2] !~ /(^|\/)(\d+)\.jpeg$/) { die; }
+			if ($ARGV[2] !~ /(^|\/)(\d+)\.jpe?g$/i) { die; }
 			$pid = $2;
 		}
 		system("cp $ARGV[2] ../data/photos/$pid.jpeg");
