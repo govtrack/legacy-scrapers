@@ -28,7 +28,7 @@ CREATE TABLE `people` (
   `middlename` tinytext CHARACTER SET utf8,
   `nickname` tinytext CHARACTER SET utf8,
   `lastname` tinytext CHARACTER SET utf8 NOT NULL,
-  `namemod` tinytext CHARACTER SET latin1,
+  `namemod` tinytext CHARACTER SET utf8,
   `lastnameenc` tinytext COLLATE utf8_bin NOT NULL,
   `lastnamealt` tinytext COLLATE utf8_bin,
   `birthday` date DEFAULT '0000-00-00',
@@ -99,7 +99,7 @@ CREATE TABLE `people_videos` (
   KEY `personid` (`personid`,`date`),
   KEY `date` (`date`),
   KEY `link` (`link`(127))
-) ENGINE=MyISAM AUTO_INCREMENT=12625615 DEFAULT CHARSET=utf8;
+) ENGINE=MyISAM AUTO_INCREMENT=12767629 DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -169,4 +169,4 @@ CREATE TABLE `committees` (
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2011-04-03 13:34:48
+-- Dump completed on 2011-05-09 19:13:32
