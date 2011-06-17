@@ -123,7 +123,7 @@ sub UpdateBills {
 sub UpdateBills2 {
 	my ($bs, $bt, $bn, $rec, $changehash, $ignorehash) = @_;
 	
-	print "<<$rec>>\n";
+	#print "<<$rec>>\n";
 	$rec = md5_base64($rec);
 
 	if ($$changehash{"$bt$bn"} eq $rec && !$ignorehash) { return; }
@@ -847,6 +847,7 @@ sub GovGetBill {
 	if ($titles) {
 	$titles =~ s/[\n\r]//g;
 	$titles =~ s/<\/?i>//gi;
+	$titles =~ s/.*italics indicate a title for a portion of a bill//; # don't get confused by content before, like stuff stuffed into a meta tag
 	while ($titles =~ m/<li>([\w\W]*?)( as [\w ]*)?:<br\/?>([\w\W]+?)(<p>|<\/ul>|$)/gi) {
 		my $type = $1;
 		my $when = $2;
