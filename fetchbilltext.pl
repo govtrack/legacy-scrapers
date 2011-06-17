@@ -116,38 +116,12 @@ sub GetBillFullText {
 	
 	mkdir $textdir;
 	
-	# Download PDFs
-	if (!$nopdfs) {
-	opendir BILLS, "$billdir";
-	foreach my $bill (sort(readdir(BILLS))) {
-		if ($bill !~ /([a-z]+)(\d+)\.xml/) { next; }
-		my ($type, $number) = ($1, $2);
-		#my @billstat = stat("$billdir/$bill");
-		#my @textstat = stat("$textdir/$type/$type$number.pdf");
-		#if ($billstat[9] > $textstat[9]) {
-			FetchBillTextPDF($session, $type, $number);
-		#}
-	}
-	closedir BILLS;
+	FetchBillTextLoadGPOList($session);
+	while ($gpolist =~ /cong_bills\&docid=f\:([a-z]+)(\d+)([a-z][a-z0-9]+)\.txt\s*\"/g) {
+		FetchBillTextPDF($session, $1, $2, $3) if (!$nopdfs);
+		FetchBillTextHTML($session, $1, $2, $3);
 	}
 
-	# Download HTML versions
-	opendir BILLS, "$billdir";
-	foreach my $bill (sort(readdir(BILLS))) {
-		if ($bill !~ /([a-z]+)(\d+)\.xml/) { next; }
-		my ($type, $number) = ($1, $2);
-		my @get_statuses;
-		foreach my $status (GetBillStatusList($type)) {
-			if (!-e "$textdir/$type/$type$number$status.pdf") { next; }
-			if (-e "$textdir/$type/$type$number$status.html") { next; }
-			push @get_statuses, $status;
-		}
-		if (scalar(@get_statuses) > 0) {
-			FetchBillTextHTML($session, $type, $number, @get_statuses);
-		}
-	}
-	closedir BILLS;
-	
 	# Download XML files
 	FetchBillXml($session, $textdir) if ($session >= 108);
 
@@ -200,23 +174,11 @@ sub GetBillFullText {
 }
 
 sub FetchBillTextPDF {
-	my ($session, $type, $number) = @_;
+	my ($session, $type, $number, $status) = @_;
 	my $basedir = "../data/us/bills.text/$session";
 	
-	FetchBillTextLoadGPOList($session);
-
-	my @stz = GetBillStatusList($type);
-	
-	my @statuses;
-	
-	while ($gpolist =~ /cong_bills\&docid=f\:$type$number([a-z][a-z0-9]+)\.txt\s*\"/g) {
-		my $status = $1;
-		push @statuses, $status;
-	}
-	
-	foreach my $status (@statuses) {
 		# PDF
-				
+	
 		my $URL = "http://frwebgate.access.gpo.gov/cgi-bin/getdoc.cgi?dbname=" . $session . "_cong_bills&docid=f:$type$number$status.txt.pdf";
 		my $file = "$basedir/$type/$type$number$status.pdf";
 		if (!-e $file) {
@@ -271,7 +233,6 @@ sub FetchBillTextPDF {
 			print TEXT $response->content;
 			close TEXT;
 		}
-	}
 }
 
 sub FetchBillTextLoadGPOList {
@@ -347,22 +308,20 @@ sub FetchBillXml {
 }
 
 sub FetchBillTextHTML {
-	my ($session, $type, $number, @get_statuses) = @_;
-
-	print "Bill Text HTML: $session/$type$number\n" if (!$OUTPUT_ERRORS_ONLY);
+	my ($session, $type, $number, $status) = @_;
 
 	my $type2 = $type;
 	if ($type2 eq "hr") { $type2 = "hres"; }
 		
-	foreach my $status (@get_statuses) {
 		my $file = "../data/us/bills.text/$session/$type/$type$number$status.html";
 		if (-e $file) { next; }
+
+	print "Bill Text HTML: $session/$type$number/$status\n" if (!$OUTPUT_ERRORS_ONLY);
 
 		# THOMAS started generating pages w/o the temp link if you don't specify Mozilla in the UA
 		my $UA = LWP::UserAgent->new(keep_alive => 2, timeout => 30, agent => "Mozilla/4.0 (GovTrack.us scraper)", from => "operations@govtrack.us");
 
 		my $URL2 = "http://thomas.loc.gov/cgi-bin/query/z?c$session:$type2$number.$status:";
-		sleep(1);
 		my $response = $UA->get($URL2);
 		if (!$response->is_success) {
 			warn "Could not fetch bill text at $URL: " . $response->code . " " . $response->message;
@@ -372,7 +331,6 @@ sub FetchBillTextHTML {
 		$HTTP_BYTES_FETCHED += length($htmltext);
 
 		FetchBillTextHTML2($session, $type, $number, $status, $htmltext);
-	}
 }
 
 sub FetchBillTextHTML2 {

@@ -427,12 +427,23 @@ sub GovGetBill {
 
 			# house vote
 			$what =~ s/, the Passed/, Passed/g; # 106 h4733 and others
-			if ($what =~ /(On passage|On motion to suspend the rules and pass the bill|On motion to suspend the rules and agree to the resolution|On motion to suspend the rules and pass the resolution|On agreeing to the resolution|On agreeing to the conference report|Two-thirds of the Members present having voted in the affirmative the bill is passed,?|On motion that the House agree to the Senate amendments?|On motion that the House suspend the rules and concur in the Senate amendments?|On motion that the House suspend the rules and agree to the Senate amendments?|On motion that the House agree with an amendment to the Senate amendments?|House Agreed to Senate Amendments.*?|Passed House)(, the objections of the President to the contrary notwithstanding.?)?(, as amended| \(Amended\))? (Passed|Failed|Agreed to|Rejected)? ?(by voice vote|without objection|by (the Yeas and Nays|Yea-Nay Vote|recorded vote)((:)? \(2\/3 required\))?: \d+ - \d+(, \d+ Present)? [ \)]*\((Roll no\.|Record Vote No:) \d+\))/i) {
+			if ($what =~ /(On passage|On motion to suspend the rules and pass the bill|On motion to suspend the rules and agree to the resolution|On motion to suspend the rules and pass the resolution|On agreeing to the resolution|On agreeing to the conference report|Two-thirds of the Members present having voted in the affirmative the bill is passed,?|On motion that the House agree to the Senate amendments?|On motion that the House suspend the rules and concur in the Senate amendments?|On motion that the House suspend the rules and agree to the Senate amendments?|On motion that the House agree with an amendment to the Senate amendments?|House Agreed to Senate Amendments.*?|Passed House)(, the objections of the President to the contrary notwithstanding.?)?(, as amended| \(Amended\))? (Passed|Failed|Agreed to|Rejected)? ?(by voice vote|without objection|by (the Yeas and Nays|Yea-Nay Vote|recorded vote)((:)? \(2\/3 required\))?: \d+ - \d+(, \d+ Present)? [ \)]*\((Roll no\.|Record Vote No:) \d+\))/i
+				|| $what eq "Measure passed House.") {
+				
 				my $motion = $1;
 				my $isoverride = $2;
 				my $asamended = $3;
 				my $passfail = $4;
 				my $how = $5;
+				
+				if ($what eq "Measure passed House.") {
+					$motion = "Passed House";
+					$isoverride = 0;
+					$asamended = 0;
+					$passfail = "Pass";
+					$how = "(method not recorded)";
+				}
+				
 				if ($motion =~ /Passed House|House Agreed to/) { $passfail = 'Pass'; }
 				my $votetype;
 				my $roll = "";
@@ -575,11 +586,20 @@ sub GovGetBill {
 				push @ACTIONS, [$action_state, 2, "vote", $what, { @axndateattrs, where => 'h', type => $votetype, result => $passfail, how => $how, roll => $roll, suspension => $suspension }, $STATE ];
 				
 			# senate vote
-			} elsif ($what =~ /(Passed Senate|Failed of passage in Senate|Resolution agreed to in Senate|Received in the Senate, considered, and agreed to|Submitted in the Senate, considered, and agreed to|Introduced in the Senate, read twice, considered, read the third time, and passed|Received in the Senate, read twice, considered, read the third time, and passed|Senate agreed to conference report|Cloture \S*\s?on the motion to proceed .*?not invoked in Senate|Cloture on the bill not invoked in Senate|Senate agreed to House amendment|Senate concurred in the House amendment)(,?[\w\W]*,?) (without objection|by Unanimous Consent|by Voice Vote|by Yea-Nay( Vote)?\. \d+\s*-\s*\d+\. Record Vote (No|Number): \d+)/) {
+			} elsif ($what =~ /(Passed Senate|Failed of passage in Senate|Resolution agreed to in Senate|Received in the Senate, considered, and agreed to|Submitted in the Senate, considered, and agreed to|Introduced in the Senate, read twice, considered, read the third time, and passed|Received in the Senate, read twice, considered, read the third time, and passed|Senate agreed to conference report|Cloture \S*\s?on the motion to proceed .*?not invoked in Senate|Cloture on the bill not invoked in Senate|Senate agreed to House amendment|Senate concurred in the House amendment)(,?[\w\W]*,?) (without objection|by Unanimous Consent|by Voice Vote|by Yea-Nay( Vote)?\. \d+\s*-\s*\d+\. Record Vote (No|Number): \d+)/
+				|| $what eq "Measure passed Senate.") {
 				my $motion = $1;
 				my $passfail = $1;
 				my $junk = $2;
 				my $how = $3;
+				
+				if ($what eq "Measure passed Senate.") {
+					$motion = "Passed Senate";
+					$passfail = "Passed";
+					$junk = '';
+					$how = "(method not recorded)";
+				}
+				
 				my $roll = "";
 
 				if ($passfail =~ /Passed|agreed|concurred/i) { $passfail = "pass"; }
