@@ -57,6 +57,9 @@ sub DownloadRollCallVotesAll {
 	if ($content && $content =~ /vote.asp\?year=$YEAR\&rollnumber=(\d+)/) {
 		my $maxHRoll = $1;
 		for (my $i = 1; $i <= $maxHRoll; $i++) {
+			# This vote was vacated. There is no record. Don't bother downloading.
+			if ("$YEAR-$i" eq "2011-484") { next; }
+		
 			if (GetHouseVote($YEAR, $i, $skipifexists)) {
 				$votesfetched++;
 			}
@@ -276,7 +279,7 @@ sub GetSenateVote {
 	my $fn = "../data/us/$SESSION/rolls/s$YEAR-$ROLL.xml";
 	if ($SKIPIFEXISTS && -e $fn) { return 0; }
 	if ($SKIPIFEXISTS =~ /^(\d)D/i && -M $fn < $1) { return 0; }
-
+	
 	my $ROLL2 = sprintf("%05d", $ROLL);
 
 	print "Fetching Senate roll $SESSION-$SUBSESSION $ROLL\n" if (!$OUTPUT_ERRORS_ONLY);
@@ -1171,7 +1174,7 @@ sub normalize_vote_type {
 		return ("Article ___", "other");
 
 	} else {
-		warn "Unhandled vote type: $type";
+		warn "Unhandled vote type: $type" if ($type ne "unknown");
 		return ($type, "unknown");
 	}
 }

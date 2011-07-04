@@ -741,14 +741,14 @@ sub GovGetBill {
 				$wasvetoed = 1;
 				$STATE = ['PROV_KILL:VETO', $when]; # could be overridden
 				push @ACTIONS, [$action_state, 2, "vetoed", $what, { @axndateattrs }, $STATE];
-			} elsif ($what =~ /Became (Public|Private) Law No: ([\d\-]+)\./) {
+			} elsif ($what =~ /(Became )?(Public|Private) Law( No:)? ([\d\-]+)\./) {
 				$STATUSNOW = "<enacted $statusdateattrs />";
 				if (!$wasvetoed) {
-					$STATE = ['ENACTED:SIGNED', $when, {type => lc($1), number => $2}];
+					$STATE = ['ENACTED:SIGNED', $when, {type => lc($2), number => $4}];
 				} else {
-					$STATE = ['ENACTED:VETO_OVERRIDE', $when, {type => lc($1), number => $2}];
+					$STATE = ['ENACTED:VETO_OVERRIDE', $when, {type => lc($2), number => $4}];
 				}
-				push @ACTIONS, [$action_state, 2, "enacted", $what, { @axndateattrs, type => lc($1), number => $2 }, $STATE];
+				push @ACTIONS, [$action_state, 2, "enacted", $what, { @axndateattrs, type => lc($2), number => $4 }, $STATE];
 
 			} elsif ($what =~ /Passed House pursuant to/) {
 				my $votetype;
