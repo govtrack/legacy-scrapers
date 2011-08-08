@@ -43,6 +43,7 @@ CREATE TABLE `people` (
   `twitterid` tinytext COLLATE utf8_bin,
   `lismemberid` varchar(6) COLLATE utf8_bin DEFAULT NULL,
   `icpsrid` int(11) DEFAULT NULL,
+  `fbid` bigint(20) DEFAULT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `bioguideid` (`bioguideid`),
   KEY `lastname` (`lastname`(30)),
@@ -99,7 +100,7 @@ CREATE TABLE `people_videos` (
   KEY `personid` (`personid`,`date`),
   KEY `date` (`date`),
   KEY `link` (`link`(127))
-) ENGINE=MyISAM AUTO_INCREMENT=13050835 DEFAULT CHARSET=utf8;
+) ENGINE=MyISAM AUTO_INCREMENT=13126011 DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -169,4 +170,4 @@ CREATE TABLE `committees` (
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2011-07-20 13:49:01
+-- Dump completed on 2011-08-08  7:53:11
