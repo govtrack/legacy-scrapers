@@ -55,6 +55,8 @@ my @ShortNames = (
 	[cathy, catherine],
 	[ray, raymond],
 	[ed, edwin],
+	[ed, edward],
+	[al, albert],
 	);
 
 if ($ARGV[0] eq "QUERY") {
@@ -161,6 +163,9 @@ sub PersonDBGetID {
 	}
 
 	#print join("--", @fnames) . " $lastname\n";
+	
+	# In 1981/97th Congress, THOMAS uses 98 for at-large.
+	if ($district == 98) { $district = 0; }
 
 	# Get list of matching records by last name.
 	

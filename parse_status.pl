@@ -1,4 +1,7 @@
-# for x in {112..100}; do echo $x; CACHED=1 SKIP_AMENDMENTS=1 perl parse_status.pl ALL $x; done
+# OUTPUT_ERRORS_ONLY=1 perl parse_status.pl ALL 112 2>&1 | tee -a log.txt
+# for x in {111..93}; do echo $x; CACHED=1 SKIP_AMENDMENTS=1 OUTPUT_ERRORS_ONLY=1 perl parse_status.pl ALL $x 2>&1 | tee -a log.txt; done;
+# SKIP_INDEX=1 
+
 
 use Time::Local;
 use LWP::UserAgent;
@@ -15,7 +18,7 @@ if ($ENV{OUTPUT_ERRORS_ONLY}) { $OUTPUT_ERRORS_ONLY = 1; }
 if ($ARGV[0] eq "PARSE_STATUS") { &Main; }
 if ($ARGV[0] eq "PARSE_STATUS_STDIN") { &Main2; }
 if ($ARGV[0] eq "REFRESH") { GovDBOpen(); RefreshBills($ARGV[1], $ARGV[2], $ARGV[3]); DBClose(); }
-if ($ARGV[0] eq "UPDATE" || $ARGV[0] eq "ALL") { GovDBOpen(); UpdateBills($ARGV[1], $ARGV[0] eq "ALL"); DBClose(); }
+if ($ARGV[0] eq "UPDATE" || $ARGV[0] eq "ALL" || $ARGV[0] eq "MISSING") { GovDBOpen(); UpdateBills($ARGV[1], $ARGV[0] eq "UPDATE" ? 0 : $ARGV[0]); DBClose(); }
 if ($ARGV[0] eq "ALLAMENDMENTS") { &AllAmendments; }
 
 1;
@@ -135,7 +138,7 @@ sub UpdateBills2 {
 	} elsif ($bt eq 'SP') {
 		if (!ParseAmendment($bs, 's', 'P', $bn)) { return; }
 	} else {
-		if (!GovGetBill($bs, $bt, $bn)) { return; }
+		if (!GovGetBill($bs, $bt, $bn, $ignorehash eq "MISSING")) { return; }
 	}
 
 	$$changehash{"$bt$bn"} = $rec;
@@ -379,6 +382,8 @@ sub GovGetBill {
 			# Some bills (109th's debt ceiling limit) have No Sponsor.
 			if ($SPONSOR_TEXT ne "No Sponsor") {
 				if ($SPONSOR_NAME =~ s/^(Sen|Rep)\.?\s+//i) { $SPONSOR_TITLE = $1; }
+				
+				$SPONSOR_NAME =~ s/Colordao/Colorado/; # typo
 
 				$SPONSOR_ID = PersonDBGetID(
 					title => $SPONSOR_TITLE,
@@ -840,16 +845,25 @@ sub GovGetBill {
 			
 			$n =~ s/Colordao/Colorado/; # typo
 			
-			my $i = PersonDBGetID(title => $t, name => $n, state => $s, when => ParseTime($d));
+			if ($d eq "12/31/1980") { $d = "12/16/1980"; } # they were already out of session
+		
+			my $d2 = ParseDateTime($d);
+			$d = ParseTime($d);
+			if ($d < $INTRODUCED) {
+				#warn "co-sponsor date $d2 is earlier than introduced date $INTRODUCED2, using introduced date";
+				$d = $INTRODUCED;
+				$d2 = $INTRODUCED2;
+			}
+			my $i = PersonDBGetID(title => $t, name => $n, state => $s, when => $d);
 			if (!defined($i)) {
-				warn "parsing bill $BILLTYPE$SESSION-$BILLNUMBER: Unknown person: $t, $n, $s on $d";
+				warn "parsing bill $BILLTYPE$SESSION-$BILLNUMBER: Unknown person: $t, $n, $s on $d2";
 				$COSPONSORS_MISSING = 1;
 			}
 			else {
 				if (!$COSPONSORS{$i}) {
 					# If we've already seen this cosponsor, then it's
 					# because he rejoined after withdrawing.
-					$COSPONSORS{$i}{added} = ParseDateTime($d);
+					$COSPONSORS{$i}{added} = $d2;
 					if ($withdrawndate) {
 						$COSPONSORS{$i}{removed} = ParseDateTime($withdrawndate);
 					}
@@ -924,6 +938,7 @@ sub GovGetBill {
 			$c =~ s/[\\\/]/\-/g;
 			$c =~ s/  / /g;
 			$r =~ s/[\\\/]/\-/g;
+			if (!$c) { next; }
 			if ($c =~ s/^Subcommittee on \s*([\w\W]*)$/$1/i) {
 				push @COMMITTEES, [$lastcommittee, $c, $r];
 			} else {
@@ -1057,7 +1072,7 @@ sub GovGetBill {
 		my $ccode;
 		my ($cnode) = $committee_xml_master->findnodes("committees/committee[thomas-names/name[\@session=$SESSION] = \"$cc[0]\"]");
 		if (!$cnode) {
-			warn "Committee not found: $cc[0]";
+			warn "Committee not found: [$SESSION] $cc[0]";
 		} else {
 			if ($cc[1] eq '') {
 				$ccode = $cnode->getAttribute('code');
@@ -1156,6 +1171,8 @@ EOF
 	binmode(SUMMARY, ":utf8");
 	print SUMMARY FormatBillSummary($SUMMARY2);
 	close SUMMARY;
+	
+	if ($ENV{SKIP_INDEX}) { return 1; }
 	
 	IndexBill($SESSION, $BILLTYPE, $BILLNUMBER);
 	

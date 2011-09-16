@@ -51,7 +51,7 @@ CREATE TABLE `people` (
   KEY `lastnameenc` (`lastnameenc`(15)),
   KEY `lastnamealt` (`lastnamealt`(15)),
   KEY `lismemberid` (`lismemberid`)
-) ENGINE=MyISAM AUTO_INCREMENT=412499 DEFAULT CHARSET=utf8 COLLATE=utf8_bin;
+) ENGINE=MyISAM AUTO_INCREMENT=412501 DEFAULT CHARSET=utf8 COLLATE=utf8_bin;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -77,7 +77,7 @@ CREATE TABLE `people_roles` (
   PRIMARY KEY (`personroleid`),
   KEY `personid` (`personid`),
   KEY `state` (`state`,`enddate`)
-) ENGINE=MyISAM AUTO_INCREMENT=43016 DEFAULT CHARSET=latin1;
+) ENGINE=MyISAM AUTO_INCREMENT=43018 DEFAULT CHARSET=latin1;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -100,7 +100,7 @@ CREATE TABLE `people_videos` (
   KEY `personid` (`personid`,`date`),
   KEY `date` (`date`),
   KEY `link` (`link`(127))
-) ENGINE=MyISAM AUTO_INCREMENT=13128023 DEFAULT CHARSET=utf8;
+) ENGINE=MyISAM AUTO_INCREMENT=13280935 DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -170,4 +170,4 @@ CREATE TABLE `committees` (
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2011-08-08 17:38:23
+-- Dump completed on 2011-09-16  7:48:23
