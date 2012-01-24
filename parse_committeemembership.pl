@@ -18,8 +18,8 @@ if (!$testing) {
 
 $xml = $XMLPARSER->parse_string("<committees/>");
 
-GetSenateCommittees();
 GetHouseCommittees();
+GetSenateCommittees();
 
 DBClose();
 
@@ -167,10 +167,10 @@ sub GetHouseCommittees_Alt {
 }
 
 sub GetHouseCommittees {
-	my ($html, $mtime) = Download('http://clerk.house.gov/committee_info/index.html');
+	my ($html, $mtime) = Download('http://clerk.house.gov/committee_info/index.aspx');
 	if (!$html) { return; }
 	
-	while ($html =~ /\/committee_info\/index\.html\?comcode=([A-Z0]{3})00">(.*?)<\//g) {
+	while ($html =~ /\/committee_info\/index\.aspx\?comcode=([A-Z]{2})00">(.*?)<\//g) {
 		my $housecode = $1;
 		my $name = $2;
 		
@@ -181,15 +181,14 @@ sub GetHouseCommittees {
 			$name = "House $name";
 		}
 
-		my $ourcode = $housecode;
-		$ourcode =~ s/^H/HS/;
+		my $ourcode = "HS" . $housecode;
 
-		if ($housecode eq 'JEC') { $ourcode = 'JSEC'; }
-		if ($housecode eq 'HJL') { $ourcode = 'JSLC'; }
-		if ($housecode eq 'HJP') { $ourcode = 'JSPR'; }
-		if ($housecode eq 'HIT') { $ourcode = 'JSTX'; }
-		if ($housecode eq 'HM0') { $ourcode = 'HSHM'; }
-		if ($housecode eq 'HIG') { $ourcode = 'HLIG'; }
+		#if ($housecode eq 'JEC') { $ourcode = 'JSEC'; }
+		#if ($housecode eq 'HJL') { $ourcode = 'JSLC'; }
+		#if ($housecode eq 'HJP') { $ourcode = 'JSPR'; }
+		#if ($housecode eq 'HIT') { $ourcode = 'JSTX'; }
+		#if ($housecode eq 'HM0') { $ourcode = 'HSHM'; }
+		#if ($housecode eq 'HIG') { $ourcode = 'HLIG'; }
 	
 		GetHouseCommittees2($name, $housecode, $ourcode, $ctype);
 	}
@@ -213,8 +212,8 @@ sub GetHouseCommittees2 {
 			($cxml) = $xml->documentElement->findnodes("committee[\@code='$ourcode']");
 		}
 		
-		print 'http://clerk.house.gov/committee_info/index.html?comcode=' . $housecode . '00' . "\n";
-		my ($html2, $mtime2) = Download('http://clerk.house.gov/committee_info/index.html?comcode=' . $housecode . '00');
+		#print 'http://clerk.house.gov/committee_info/index.aspx?comcode=' . $housecode . '00' . "\n";
+		my ($html2, $mtime2) = Download('http://clerk.house.gov/committee_info/index.aspx?comcode=' . $housecode . '00');
 		if (!$html2) { die $housecode; }
 		if ($html2 !~ /Committee on|Joint Economic/) { die $housecode; }
 		
@@ -224,7 +223,7 @@ sub GetHouseCommittees2 {
 		
 		my @subcoms;
 		my %subcomnames;
-		while ($html2 =~ /href="index.html\?subcomcode=${housecode}(\d\d)">(.*?)<\//g) {
+		while ($html2 =~ /href="\/committee_info\/index.aspx\?subcomcode=${housecode}(\d\d)">(.*)/g) {
 			my $scid = $1;
 			my $scname = $2;
 			
@@ -246,8 +245,8 @@ sub GetHouseCommittees2 {
 			} else {
 				# fetch info for this subcommittee
 
-				print 'http://clerk.house.gov/committee_info/index.html?subcomcode=' . $housecode . $scid . "\n";
-				($html2, $mtime2) = Download('http://clerk.house.gov/committee_info/index.html?subcomcode=' . $housecode . $scid);
+				print 'http://clerk.house.gov/committee_info/index.aspx?subcomcode=' . $housecode . $scid . "\n";
+				($html2, $mtime2) = Download('http://clerk.house.gov/committee_info/index.aspx?subcomcode=' . $housecode . $scid);
 				if (!$html2) { die; }
 
 				$ccode = $ourcode . $scid;
@@ -273,7 +272,7 @@ sub GetHouseCommittees2 {
 					$rank = 1;
 				}
 				
-				if ($line =~ /mem_contact_info\.html\?statdis=([^"]+)">(.*?)\s*<\/a>(, \w\w, ([\w\s]+))?/) {
+				if ($line =~ /mem_contact_info\.aspx\?statdis=([^"]+)">(.*?)\s*<\/a>(, \w\w, ([\w\s]+))?/) {
 					my $statedist = $1;
 					my $pname = $2;
 					my $position = $4;

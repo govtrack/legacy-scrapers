@@ -100,7 +100,7 @@ CREATE TABLE `people_videos` (
   KEY `personid` (`personid`,`date`),
   KEY `date` (`date`),
   KEY `link` (`link`(127))
-) ENGINE=MyISAM AUTO_INCREMENT=13511615 DEFAULT CHARSET=utf8;
+) ENGINE=MyISAM AUTO_INCREMENT=13805620 DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -141,7 +141,7 @@ CREATE TABLE `people_committees` (
   `senatecode` text COLLATE utf8_unicode_ci NOT NULL,
   PRIMARY KEY (`people_committee_id`),
   KEY `personid` (`personid`)
-) ENGINE=MyISAM AUTO_INCREMENT=171632 DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+) ENGINE=MyISAM AUTO_INCREMENT=183763 DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -170,4 +170,4 @@ CREATE TABLE `committees` (
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2011-11-12 19:00:19
+-- Dump completed on 2012-01-24 16:10:40

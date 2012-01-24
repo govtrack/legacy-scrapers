@@ -6,11 +6,9 @@ require "general.pl";
 require "billdiff.pl";
 require "db.pl";
 
-my $gpolist;
-
-my %fdsysbilltype = (
-	h => 'hr', hr => 'hres', hj => 'hjres', hc => 'hconres',
-	's' => 's', sr => 'sres', sj => 'sjres', sc => 'sconres');
+my %fdsys_to_gt_billtype = (
+	'hr' => 'h', 'hres' => 'hr', 'hjres' => 'hj', 'hconres' => 'hc',
+	's' => 's', 'sres' => 'sr', 'sjres' => 'sj', 'sconres' => 'sc');
 	
 my @statuslist_h = (
 	ih,   #    Introduced in House
@@ -116,10 +114,15 @@ sub GetBillFullText {
 	
 	mkdir $textdir;
 	
-	FetchBillTextLoadGPOList($session);
-	while ($gpolist =~ /cong_bills\&docid=f\:([a-z]+)(\d+)([a-z][a-z0-9]+)\.txt\s*\"/g) {
-		FetchBillTextPDF($session, $1, $2, $3) if (!$nopdfs);
-		FetchBillTextHTML($session, $1, $2, $3);
+	for my $year (2011) {
+		my $response = $UA->get("http://www.gpo.gov/smap/fdsys/sitemap_$year/${year}_BILLS_sitemap.xml");
+		if (!$response->is_success) { warn "Could not fetch bill list for $year"; next; }
+		my $content = $response->content;
+		$HTTP_BYTES_FETCHED += length($content);
+		while ($content =~ m|http://www.gpo.gov/fdsys/pkg/BILLS-$session([a-z]+)(\d+)([a-z]\w*)/content-detail|g) {
+			FetchBillTextPDF($session, $1, $2, $3) if (!$nopdfs);
+			FetchBillTextHTML($session, $fdsys_to_gt_billtype{$1}, $2, $3);
+		}
 	}
 
 	# Download XML files
@@ -174,12 +177,14 @@ sub GetBillFullText {
 }
 
 sub FetchBillTextPDF {
-	my ($session, $type, $number, $status) = @_;
+	my ($session, $fdstype, $number, $status) = @_;
+	my $type = $fdsys_to_gt_billtype{$fdstype};
+	
 	my $basedir = "../data/us/bills.text/$session";
 	
 		# PDF
 	
-		my $URL = "http://frwebgate.access.gpo.gov/cgi-bin/getdoc.cgi?dbname=" . $session . "_cong_bills&docid=f:$type$number$status.txt.pdf";
+		my $URL = "http://www.gpo.gov/fdsys/pkg/BILLS-$session$fdstype$number$status/pdf/BILLS-$session$fdstype$number$status.pdf";
 		my $file = "$basedir/$type/$type$number$status.pdf";
 		if (!-e $file) {
 			print "Bill Text PDF: $session/$type$number/$status\n" if (!$OUTPUT_ERRORS_ONLY);
@@ -203,8 +208,6 @@ sub FetchBillTextPDF {
 		
 		# MODS
 		
-		my $type2 = $fdsysbilltype{$type};
-
 		my $file = "$basedir/$type/$type$number$status.mods.xml";
 		if (!-e $file) {
 			print "Bill Text MODS: $session/$type$number/$status\n" if (!$OUTPUT_ERRORS_ONLY);
@@ -212,11 +215,11 @@ sub FetchBillTextPDF {
 			#sleep(1);
 			# Statuses on FDSYS are generally capitalized, but not always, and it seems to be random.
 			my $status2 = uc($status);
-			my $URL = "http://www.gpo.gov/fdsys/pkg/BILLS-${session}${type2}${number}${status2}/mods.xml";
+			my $URL = "http://www.gpo.gov/fdsys/pkg/BILLS-${session}${fdstype}${number}${status2}/mods.xml";
 			my $response = $UA->get($URL);
 			if (!$response->is_success || $response->content =~ /Error Detected/) {
 				$status2 = lc($status);
-				$URL = "http://www.gpo.gov/fdsys/pkg/BILLS-${session}${type2}${number}${status2}/mods.xml";
+				$URL = "http://www.gpo.gov/fdsys/pkg/BILLS-${session}${fdstype}${number}${status2}/mods.xml";
 				$response = $UA->get($URL);
 			}
 			if (!$response->is_success || $response->content =~ /Error Detected/) {
@@ -233,36 +236,6 @@ sub FetchBillTextPDF {
 			print TEXT $response->content;
 			close TEXT;
 		}
-}
-
-sub FetchBillTextLoadGPOList {
-	my $session = shift;
-	if (defined($gpolist)) { return; }
-
-	# Cache the list for 3 hours.
-	mkdir "tmp";
-	my @gpostat = stat("tmp/gpolist-$session");
-	if ($gpostat[9] > time-60*60*3) {
-		$gpolist = `cat tmp/gpolist-$session`;
-		return;
-	}
-	
-	print "Retreiving GPO Bill List... \n" if (!$OUTPUT_ERRORS_ONLY);;
-	my $URL = "http://frwebgate.access.gpo.gov/cgi-bin/BillBrowse.cgi?dbname=" . $session . "_cong_bills\&wrapperTemplate=all" . $session . "bills_wrapper.html\&billtype=all";
-	my $response = $UA->get($URL);
-	if (!$response->is_success) {
-		die "Could not fetch bill list at $URL: " .
-			$response->code . " " .
-			$response->message;
-	}
-	$HTTP_BYTES_FETCHED += length($response->content);
-	$gpolist = $response->content;
-	
-	open GPOLIST, ">tmp.gpolist-$session";
-	print GPOLIST $gpolist;
-	close GPOLIST;
-	
-	print "Done.\n";
 }
 
 sub FetchBillXml {

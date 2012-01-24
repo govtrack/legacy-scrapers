@@ -33,6 +33,9 @@ DBClose();
 # Touch the website to force the cache to clear.
 system("touch ../../website/style/master.xsl");
 
+# Update the git archive.
+system("cd; ./update-git-repo");
+
 sub DoEarlyGather {
 	# Update any bills whose THOMAS summary changed.
 	require "parse_status.pl";
