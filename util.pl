@@ -135,8 +135,8 @@ $StateNamesString = join("|", @StateNames);
 # Congress Sessions
 open SESSIONS, "<../data/us/sessions.tsv";
 while (!eof(SESSIONS)) {
-	$_ = <SESSIONS>; chop; split(/\t/);
-	my ($cong, $sess, $st, $en) = @_;
+	my $line = <SESSIONS>; chop $line;
+	my ($cong, $sess, $st, $en) = split(/\t/, $line);
 	if (!defined($SessionStart{$cong})) { $SessionStart{$cong} = $st; }
 	$SessionEnd{$cong} = $en;
 	push @SessionList, [$cong, $sess, $st, $en];

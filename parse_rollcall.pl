@@ -720,7 +720,8 @@ sub MakeVoteMap {
 	
 	my %votebreakdown;
 	
-	if (!defined(%PersonPoliticalParties)) {
+	if (!defined($PersonPoliticalParties{LOADED})) {
+		$PersonPoliticalParties{LOADED} = 1;
 		my @parties = DBSelect(people_roles, [personid, party], [$PERSON_ROLE_NOW]);
 		foreach my $p (@parties) {
 			$PersonPoliticalParties{$$p[0]} = $$p[1];

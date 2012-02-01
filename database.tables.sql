@@ -1,8 +1,8 @@
--- MySQL dump 10.13  Distrib 5.1.41, for debian-linux-gnu (x86_64)
+-- MySQL dump 10.13  Distrib 5.1.58, for debian-linux-gnu (x86_64)
 --
 -- Host: localhost    Database: govtrack
 -- ------------------------------------------------------
--- Server version	5.1.41-3ubuntu12.10
+-- Server version	5.1.58-1ubuntu1
 
 /*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
 /*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
@@ -100,7 +100,7 @@ CREATE TABLE `people_videos` (
   KEY `personid` (`personid`,`date`),
   KEY `date` (`date`),
   KEY `link` (`link`(127))
-) ENGINE=MyISAM AUTO_INCREMENT=13805620 DEFAULT CHARSET=utf8;
+) ENGINE=MyISAM AUTO_INCREMENT=13833594 DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -170,4 +170,4 @@ CREATE TABLE `committees` (
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2012-01-24 16:10:40
+-- Dump completed on 2012-02-01 12:42:59
