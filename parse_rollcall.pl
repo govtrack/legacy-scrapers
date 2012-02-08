@@ -1141,7 +1141,7 @@ sub normalize_vote_type {
 	} elsif ($type eq "On the Motion") {
 		return ($type, "procedural");
 	} elsif ($type eq "Will the House Now Consider the Resolution"
-		|| $type =~ /On (Question of )?Consideration of (the )?(Bill|Resolution|Conference Report)/) {
+		|| $type =~ /On (Question of )?Consideration of (the )?(Bill|Resolution|Joint Resolution|Conference Report)/) {
 		return ("On Question of Consideration", "procedural");
 	} elsif ($type eq "On Motion to Adjourn" || $type eq "On the Motion to Adjourn") {
 		return ("On the Motion to Adjourn", "procedural");
