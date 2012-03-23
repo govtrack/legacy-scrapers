@@ -1049,14 +1049,18 @@ sub GovGetBill {
 			}
 			$axncom .= "/>";
 		}
+
+		my $stateattr = "";
+		if ($cc[3] ne '' && $cc[3][0] ne $laststate) { $stateattr = " state=\"" . $cc[3][0] . "\""; $laststate = $cc[3][0]; }
+		
 		if ($ccc == 1) {
 			$cc[2] =~ s/<\/?[^>]+>//g;
-			push @act, "\t\t<action $cc[0]>$axncom" . ParseActionText($cc[1]) . "</action>";
+			push @act, "\t\t<action $cc[0]$stateattr>$axncom" . ParseActionText($cc[1]) . "</action>";
 		} else {
 			my $s = "<$cc[0] ";
 			my %sk = %{ $cc[2] };
 			foreach my $k (keys(%sk)) { if ($sk{$k} eq "") { next; } $s .= "$k=\"$sk{$k}\" "; }
-			if ($cc[3] ne '' && $cc[3][0] ne $laststate) { $s .= " state=\"" . $cc[3][0] . "\""; $laststate = $cc[3][0]; }
+			$s .= $stateattr;
 			$s .= ">$axncom" . ParseActionText($cc[1]) . "</$cc[0]>";
 			push @act, "\t\t$s";
 		}

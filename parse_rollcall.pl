@@ -321,7 +321,7 @@ sub GetSenateVote {
 		if ($doc->findvalue('amendment/amendment_number') =~ /^S.Amdt. (\d+)$/i) {
 			$AMENDMENT = ['regular', $SESSION, 's' . $1];
 		} else {
-			die "Unrecognized amendment number type: " . $doc->findvalue('amendment/amendment_number') . " in $URL";
+			warn "Unrecognized amendment number type: " . $doc->findvalue('amendment/amendment_number') . " in $URL";
 		}
 		if ($doc->findvalue('amendment/amendment_to_document_number') =~ /^$BillPattern$/i) {
 			my ($t, $n) = ($1, $2);

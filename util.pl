@@ -152,16 +152,6 @@ sub SessionFromYear {
 	my $year = shift;
 	return int(($year - 1787)/2);
 }
-sub StartOfSession {
-	die;
-	my $session = shift;
-	return timelocal(0,0,0, 1, 0, $session*2+1787);
-}
-sub EndOfSession {
-	die;
-	my $session = shift;
-	return timelocal(0,0,0, 31, 11, $session*2+1788);
-}
 sub StartOfSessionYMD {
 	my $cong = shift;
 	return $SessionStart{$cong};
@@ -169,10 +159,6 @@ sub StartOfSessionYMD {
 sub EndOfSessionYMD {
 	my $cong = shift;
 	return $SessionEnd{$cong};
-}
-sub SessionFromDate {
-	die;
-	return SessionFromYear(YearFromDate($_[0]));
 }
 sub SubSessionFromYear {
 	if (!$_[1]) { die; } # flag that it is ok
@@ -204,6 +190,11 @@ sub YearFromDate {
 	my ($sec,$min,$hour,$mday,$mon,$year,$wday,$yday,$isdst)
 		= localtime($date);
 	return $year += 1900;
+}
+sub YearFromYMD {
+	my $ymd = shift;
+	if ($ymd !~ /^(\d\d\d\d)-/) { die; }
+	return $1;
 }
 
 sub YMDFromDate {

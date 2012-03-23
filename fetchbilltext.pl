@@ -114,7 +114,9 @@ sub GetBillFullText {
 	
 	mkdir $textdir;
 	
-	for my $year (2011) {
+	for my $year (YearFromYMD(StartOfSessionYMD($session)) .. YearFromYMD(EndOfSessionYMD($session))) {
+		# file may contain bills from a different congress because it is
+		# by calendar year, but we are filtering in the regex properly.
 		my $response = $UA->get("http://www.gpo.gov/smap/fdsys/sitemap_$year/${year}_BILLS_sitemap.xml");
 		if (!$response->is_success) { warn "Could not fetch bill list for $year"; next; }
 		my $content = $response->content;

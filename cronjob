@@ -23,7 +23,7 @@ $OUTPUT_ERRORS_ONLY = 1;
 if ($A[0] eq "EARLYGATHER") { DoEarlyGather(); }
 if ($A[0] eq "" || $A[0] eq "GATHER") { DoNoonGather(); }
 if ($A[0] eq "" || $A[0] eq "INDEX") { DoIndex(); }
-if ($A[0] eq "EMAILS") { DoEmails(); }
+#if ($A[0] eq "EMAILS") { DoEmails(); }
 
 print "$HTTP_BYTES_FETCHED bytes fetched.\n";
 print `date`;
@@ -31,7 +31,9 @@ print `date`;
 DBClose();
 
 # Touch the website to force the cache to clear.
-system("touch ../../website/style/master.xsl");
+#system("touch ../../website/style/master.xsl");
+
+system("cd ~/web; ./run_parsers.sh");
 
 # Update the git archive.
 system("cd; ./update-git-repo");
