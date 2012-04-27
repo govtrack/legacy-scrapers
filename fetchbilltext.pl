@@ -219,12 +219,12 @@ sub FetchBillTextPDF {
 			my $status2 = uc($status);
 			my $URL = "http://www.gpo.gov/fdsys/pkg/BILLS-${session}${fdstype}${number}${status2}/mods.xml";
 			my $response = $UA->get($URL);
-			if (!$response->is_success || $response->content =~ /Error Detected/) {
+			if (!$response->is_success || $response->content =~ /Error Detected|nocontent.htm/) {
 				$status2 = lc($status);
 				$URL = "http://www.gpo.gov/fdsys/pkg/BILLS-${session}${fdstype}${number}${status2}/mods.xml";
 				$response = $UA->get($URL);
 			}
-			if (!$response->is_success || $response->content =~ /Error Detected/) {
+			if (!$response->is_success || $response->content =~ /Error Detected|nocontent.htm/) {
 				warn "Could not fetch bill text at $URL (tried capital/lowercase status): " .
 					$response->code . " " .
 					$response->message;

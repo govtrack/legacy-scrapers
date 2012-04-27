@@ -23,7 +23,7 @@ $OUTPUT_ERRORS_ONLY = 1;
 if ($A[0] eq "EARLYGATHER") { DoEarlyGather(); }
 if ($A[0] eq "" || $A[0] eq "GATHER") { DoNoonGather(); }
 if ($A[0] eq "" || $A[0] eq "INDEX") { DoIndex(); }
-#if ($A[0] eq "EMAILS") { DoEmails(); }
+if ($A[0] eq "EMAILS") { DoEmails(); }
 
 print "$HTTP_BYTES_FETCHED bytes fetched.\n";
 print `date`;
@@ -63,8 +63,8 @@ sub DoNoonGather {
 	#GetCR('s', $retdate, 1);
 	#GetCR('h', $retdate, 1);
 
-	require "fetchcbo.pl";
-	GetCBO();
+	#require "fetchcbo.pl";
+	#GetCBO();
 	
 	require "fetchomb.pl";
 	#GetOMB($retdate);
@@ -116,10 +116,11 @@ sub DoIndex {
 
 
 sub DoEmails {
-	my $bin = "cd ../../website/bin; /usr/bin/mono GovTrackEmailUpdates.exe";
-	system("$bin daily");
-
-	if ($Weekly) { system("$bin weekly"); }
+	if (!$Weekly) {
+		system("cd ~/web; ./manage.py send_email_updates daily");
+	} else {
+		system("cd ~/web; ./manage.py send_email_updates weekly");
+	}
 }
 
 sub TestIsWeekly {
