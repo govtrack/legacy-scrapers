@@ -93,7 +93,7 @@ sub FetchHouseCommitteeSchedule {
 		#if ($line =~ /<center><strong>/) { last; }
 		if ($line =~ /Next Meeting/) { last; }
 		
-		if ($line =~ /<em>((Permanent )?Select )?Committee on (the )?([\w\W]+?)([,:;])?<\/em>/) {
+		if ($line =~ /<em>((Permanent )?Select )?Committee on (the )?([\w\W]+?)([,:;])?\s*<\/em>/) {
 			my $typ = $1;
 			$typ =~ s/ $//;
 			

@@ -57,8 +57,9 @@ sub DownloadRollCallVotesAll {
 	if ($content && $content =~ /vote.asp\?year=$YEAR\&rollnumber=(\d+)/) {
 		my $maxHRoll = $1;
 		for (my $i = 1; $i <= $maxHRoll; $i++) {
-			# This vote was vacated. There is no record. Don't bother downloading.
+			# These votes were vacated. There is no record. Don't bother downloading.
 			if ("$YEAR-$i" eq "2011-484") { next; }
+			if ("$YEAR-$i" eq "2012-327") { next; }
 		
 			if (GetHouseVote($YEAR, $i, $skipifexists)) {
 				$votesfetched++;
@@ -79,11 +80,6 @@ sub DownloadRollCallVotesAll {
 
 	DBClose() if !$noopendb;
 	
-	# If we found votes, touch the website to force the cache to clear.
-	if ($votesfetched != 0) {
-		system("touch ../../website/style/master.xsl");
-	}
-
 	if (($votesfetched == 0 && !$forceindex) || $forceindex eq 'no') { return; }
 	
 	# Update the bill status files of any referenced bills (and thus amendments too)
@@ -293,6 +289,16 @@ sub GetSenateVote {
 	my $REQUIRED = $doc->findvalue('majority_requirement');
 	my $RESULT = $doc->findvalue('vote_result');
 	my %votes = ();
+	
+	# Except when there are nominations, the vote_question_text field is more
+	# informative than putting the type and title together. When there are
+	# nominations, vote_question_text uses PN___ to indicate the nomination
+	# whereas vote_title has an explanation. Since we don't parse nominations,
+	# it's better to use the explanation.
+	my $vqt = $doc->findvalue('vote_question_text');
+	if ($vqt !~ / PN\d+/) {
+		$QUESTION = $vqt;
+	}
 
 	# Ensure the options are noted, even if no one votes that way.
 	if ($TYPE eq "Guilty or Not Guilty") {
@@ -392,6 +398,10 @@ sub GetHouseVote {
 
 	if ($content eq "") {
 		warn "House rollcall at $URL is empty.";
+		return 0;
+	}
+	if ($content =~ /This vote was vacated by unanimous consent/) {
+		warn "House rollcall at $URL was vacated.";
 		return 0;
 	}
 

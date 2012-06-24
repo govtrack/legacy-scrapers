@@ -189,6 +189,9 @@ sub GetHouseCommittees {
 		#if ($housecode eq 'HIT') { $ourcode = 'JSTX'; }
 		#if ($housecode eq 'HM0') { $ourcode = 'HSHM'; }
 		#if ($housecode eq 'HIG') { $ourcode = 'HLIG'; }
+		
+		if ($ourcode eq 'HSIG') { $ourcode = 'HLIG'; }
+		if ($ourcode eq 'HSSO') { $ourcode = 'HLET'; }
 	
 		GetHouseCommittees2($name, $housecode, $ourcode, $ctype);
 	}
@@ -272,7 +275,7 @@ sub GetHouseCommittees2 {
 					$rank = 1;
 				}
 				
-				if ($line =~ /mem_contact_info\.aspx\?statdis=([^"]+)">(.*?)\s*<\/a>(, \w\w, ([\w\s]+))?/) {
+				if ($line =~ /mem_contact_info\.aspx\?statdis=([^"]+)"[^>]*>(.*?)\s*<\/a>(, \w\w, ([\w\s]+))?/) {
 					my $statedist = $1;
 					my $pname = $2;
 					my $position = $4;

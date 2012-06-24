@@ -46,7 +46,7 @@ for my $C ('A' .. 'Z') {
 	my $id;
 	for my $line (split(/[\n\r]+/, $content)) {
 		if ($line =~ /bioguide.congress.gov\/scripts\/biodisplay.pl/) {
-			if ($line !~ /bioguide.congress.gov\/scripts\/biodisplay.pl\?index=(\w+)">([^<]+)<\/A><\/td><td>(c? ?[\d\/\?]+c?|\&nbsp;|unknown)-(c? ?[\d\/\?]+c?|\&nbsp;|)\s*<\/td>$/) {
+			if ($line !~ /bioguide.congress.gov\/scripts\/biodisplay.pl\?index=(\w+)">([^<]+)<\/A><\/td><td>(c?a?\.? ?[\d\/\?]+c?|\&nbsp;|unknown)-(c? ?[\d\/\?]+c?|\&nbsp;|)\s*<\/td>$/) {
 				die $line;
 			}
 			my $birth;
