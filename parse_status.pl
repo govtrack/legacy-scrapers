@@ -1352,7 +1352,7 @@ sub HTMLify {
 sub FormatBillSummary {
 	my $summary = shift;
 	
-	my @splits = split(/(Division|Title|Subtitle|Part|Chapter)\s+([^:\n]+)\s*: (.*?) - |\((Sec)\. (\d+)\)|(\n)/, $summary);
+	my @splits = split(/(Division|Title|Subtitle|Part|Chapter)\s+([A-Z][^:\n]{0,60})\s*: (.*?) - |\((Sec)\. (\d+)\)|(\n)/, $summary);
 	
 	my %secorder = (Division => 1, Title => 2, Subtitle => 3, Part 
 	=> 4, Chapter => 5, Section => 6, Paragraph => 7);
@@ -1399,12 +1399,24 @@ sub FormatBillSummary {
 
 		} elsif ($s eq "\n") {
 		} else {
-			while (scalar(@stack) > 0 && $secorder{Paragraph} <= $secorder{$stack[scalar(@stack)-1]}) { $ret .= "</" . pop(@stack) . ">"; }
+			# Use Eric Mill's approach to break up paragraphs into even smaller parts when there
+			# is numbered bullets or multiple sentences. Otherwise paragraphs can be huge.
+			# But don't break up small paragraphs.
+			if (length($s) > 500) {
+				$s =~ s/\s+(\(\d+\))/\n$1/g; # section numbering
+				$s =~ s/( [^A-Z\s]+\.)\s+/$1\n/g; # sentences
+			}
 			
-			$ret .= "<Paragraph>$s";
-			push @stack, 'Paragraph';
-			
-			$lastisbullet = ($s =~ /<br\/>- $/);
+			foreach my $ss (split(/\n/, $s)) {
+				if ($ss !~ /\S/) { next; } # skip empty paragraphs
+				
+				while (scalar(@stack) > 0 && $secorder{Paragraph} <= $secorder{$stack[scalar(@stack)-1]}) { $ret .= "</" . pop(@stack) . ">"; }
+				
+				$ret .= "<Paragraph>$ss";
+				push @stack, 'Paragraph';
+				
+				$lastisbullet = ($ss =~ /<br\/>- $/);
+			}
 		}
 	}
 
