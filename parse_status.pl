@@ -432,8 +432,8 @@ sub GovGetBill {
 
 			# house vote
 			$what =~ s/, the Passed/, Passed/g; # 106 h4733 and others
-			if ($what =~ /(On passage|On motion to suspend the rules and pass the bill|On motion to suspend the rules and agree to the resolution|On motion to suspend the rules and pass the resolution|On agreeing to the resolution|On agreeing to the conference report|Two-thirds of the Members present having voted in the affirmative the bill is passed,?|On motion that the House agree to the Senate amendments?|On motion that the House suspend the rules and concur in the Senate amendments?|On motion that the House suspend the rules and agree to the Senate amendments?|On motion that the House agree with an amendment to the Senate amendments?|House Agreed to Senate Amendments.*?|Passed House)(, the objections of the President to the contrary notwithstanding.?)?(, as amended| \(Amended\))? (Passed|Failed|Agreed to|Rejected)? ?(by voice vote|without objection|by (the Yeas and Nays|Yea-Nay Vote|recorded vote)((:)? \(2\/3 required\))?: \d+ - \d+(, \d+ Present)? [ \)]*\((Roll no\.|Record Vote No:) \d+\))/i
-				|| $what eq "Measure passed House.") {
+			if ($what =~ /(On passage|On motion to suspend the rules and pass the bill|On motion to suspend the rules and agree to the resolution|On motion to suspend the rules and pass the resolution|On agreeing to the resolution|On agreeing to the conference report|Two-thirds of the Members present having voted in the affirmative the bill is passed,?|On motion that the House agree to the Senate amendments?|On motion that the House suspend the rules and concur in the Senate amendments?|On motion that the House suspend the rules and agree to the Senate amendments?|On motion that the House agree with an amendment to the Senate amendments?|House Agreed to Senate Amendments.*?|Passed House|Measure passed House,)(, the objections of the President to the contrary notwithstanding.?)?(, as amended| \(Amended\))? (Passed|Failed|Agreed to|Rejected)? ?(by voice vote|without objection|by (the Yeas and Nays|Yea-Nay Vote|recorded vote)((:)? \(2\/3 required\))?: \d+ - \d+(, \d+ Present)? [ \)]*\((Roll no\.|Record Vote No:) \d+\)|roll call \#(\d+) \(\d+-\d+\))/i
+				|| $what =~ /^Measure passed House/) {
 				
 				my $motion = $1;
 				my $isoverride = $2;
@@ -441,15 +441,15 @@ sub GovGetBill {
 				my $passfail = $4;
 				my $how = $5;
 				
-				if ($what eq "Measure passed House.") {
+				if ($what =~ /^Measure passed House/) {
 					$motion = "Passed House";
 					$isoverride = 0;
-					$asamended = 0;
+					$asamended = ($what =~ /, amended/);
 					$passfail = "Pass";
 					$how = "(method not recorded)";
 				}
 				
-				if ($motion =~ /Passed House|House Agreed to/) { $passfail = 'Pass'; }
+				if ($motion =~ /Passed House|House Agreed to|Measure passed House/) { $passfail = 'Pass'; }
 				my $votetype;
 				my $roll = "";
 				
@@ -477,6 +477,9 @@ sub GovGetBill {
 				
 				if ($what =~ /\((Roll no\.|Record Vote No:) (\d+)\)/i) {
 					$roll = $2;
+					$how = "roll";
+				} elsif ($what =~ /roll call \#(\d+) \(\d+-\d+\)/i) {
+					$roll = $1;
 					$how = "roll";
 				}
 				
@@ -592,14 +595,19 @@ sub GovGetBill {
 				
 			# senate vote
 			} elsif ($what =~ /(Passed Senate|Failed of passage in Senate|Resolution agreed to in Senate|Received in the Senate, considered, and agreed to|Submitted in the Senate, considered, and agreed to|Introduced in the Senate, read twice, considered, read the third time, and passed|Received in the Senate, read twice, considered, read the third time, and passed|Senate agreed to conference report|Cloture \S*\s?on the motion to proceed .*?not invoked in Senate|Cloture on the bill not invoked in Senate|Senate agreed to House amendment|Senate concurred in the House amendment)(,?[\w\W]*,?) (without objection|by Unanimous Consent|by Voice Vote|by Yea-Nay( Vote)?\. \d+\s*-\s*\d+\. Record Vote (No|Number): \d+)/
-				|| $what eq "Measure passed Senate.") {
+				|| $what eq "Measure passed Senate."
+				|| $what eq "Senate agreed to House amendments.") {
 				my $motion = $1;
 				my $passfail = $1;
 				my $junk = $2;
 				my $how = $3;
 				
-				if ($what eq "Measure passed Senate.") {
-					$motion = "Passed Senate";
+				if ($what eq "Measure passed Senate." || $what eq "Senate agreed to House amendments.") {
+					if ($what eq "Measure passed Senate.") {
+						$motion = "Passed Senate";
+					} else {
+						$motion = $what;
+					}
 					$passfail = "Passed";
 					$junk = '';
 					$how = "(method not recorded)";
@@ -706,6 +714,12 @@ sub GovGetBill {
 					# then pingpong is over and the bill has passed both chambers.
 					if ($passfail ne 'pass') {
 						$STATE = ['PROV_KILL:PINGPONGFAIL', $when];
+					} elsif (($BILLTYPE eq 'hj' || $BILLTYPE eq 'sj') && $backup_title =~ /Proposing an amendment to the Constitution of the United States/) {
+						# joint resolution that looks like an amendment to the constitution
+						$STATE = ['PASSED:CONSTAMEND', $when];
+					} elsif ($BILLTYPE eq 'hc' || $BILLTYPE eq 'sc') {
+						# concurrent resolutions
+						$STATE = ['PASSED:CONCURRENTRES', $when];
 					} elsif ($what !~ /with an amendment/) {
 						$STATE = ['PASSED:BILL', $when];
 					} else {
@@ -716,7 +730,15 @@ sub GovGetBill {
 					# chambers to pass the conference report.
 					if ($passfail eq 'pass') { $conferenceagreed++; }
 					if ($conferenceagreed == 2) {
-						$STATE = ['PASSED:BILL', $when];
+						if (($BILLTYPE eq 'hj' || $BILLTYPE eq 'sj') && $backup_title =~ /Proposing an amendment to the Constitution of the United States/) {
+							# joint resolution that looks like an amendment to the constitution
+							$STATE = ['PASSED:CONSTAMEND', $when];
+						} elsif ($BILLTYPE eq 'hc' || $BILLTYPE eq 'sc') {
+							# concurrent resolutions
+							$STATE = ['PASSED:CONCURRENTRES', $when];
+						} else {
+							$STATE = ['PASSED:BILL', $when];
+						}
 					}
 				}
 
@@ -746,7 +768,7 @@ sub GovGetBill {
 				$wasvetoed = 1;
 				$STATE = ['PROV_KILL:VETO', $when]; # could be overridden
 				push @ACTIONS, [$action_state, 2, "vetoed", $what, { @axndateattrs }, $STATE];
-			} elsif ($what =~ /(Became )?(Public|Private) Law( No:)? ([\d\-]+)\./) {
+			} elsif ($what =~ /(Became )?(Public|Private) Law( No:)? ([\d\-]+)\./i) {
 				$STATUSNOW = "<enacted $statusdateattrs />";
 				if (!$wasvetoed) {
 					$STATE = ['ENACTED:SIGNED', $when, {type => lc($2), number => $4}];

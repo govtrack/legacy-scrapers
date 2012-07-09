@@ -235,6 +235,9 @@ sub RefreshBadVotes {
 		if ($vote->documentElement->getAttribute("datetime") !~ /T/) {
 			$bad = 1;
 		}
+		if ($vote->documentElement->getAttribute("source") !~ /\S/) {
+			$bad = 1;
+		}
 
 		#if ($where eq 's' && $vote->documentElement->findvalue('@aye+@nay+@nv+@present') != 100) {
 		#	$bad = 1; # all senate votes where count != 100
