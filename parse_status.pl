@@ -339,7 +339,7 @@ sub GovGetBill {
 	my $INTRODUCED2 = undef;
 	my @ACTIONS = ();
 	my @COMMITTEES = ();
-	my %COSPONSORS = ();
+	my @COSPONSORS = ();
 	my $COSPONSORS_MISSING = 0;
 	my @RELATEDBILLS = ();
 	my @TITLES = ();
@@ -363,10 +363,11 @@ sub GovGetBill {
 		my $cline = shift(@content);
 
 		# SPONSOR
-		if ($cline =~ /(<br \/>)?<b>Sponsor: <\/b>(No Sponsor|<a [^>]+>([\w\W]*)<\/a>\s+\[(\w\w(-\d+)?)\])/i) {
+		if ($cline =~ /(<br \/>)?<b>Sponsor: <\/b>(No Sponsor|<a ([^>]+)>([\w\W]*)<\/a>\s+\[(\w\w(-\d+)?)\])/i) {
 			my $SPONSOR_TEXT = $2;
-			$SPONSOR_NAME = $3;
-			$SPONSOR_STATE = $4;
+			$SPONSOR_NAME = $4;
+			$SPONSOR_STATE = $5;
+			$SPONSOR_A_ATTRS = $3;
 
 			while (scalar(@content) > 0) {
 				my $cline = shift(@content);
@@ -390,8 +391,17 @@ sub GovGetBill {
 					name => $SPONSOR_NAME,
 					state => $SPONSOR_STATE,
 					when => $INTRODUCED);
+				my $pid = $SPONSOR_ID;
 				if (!defined($SPONSOR_ID)) { warn "parsing bill $BILLTYPE$SESSION-$BILLNUMBER: Unknown sponsor: $SPONSOR_TITLE, $SPONSOR_NAME, $SPONSOR_STATE"; return; }
 				else { $SPONSOR_ID = "id=\"$SPONSOR_ID\""; }
+
+				#if ($pid) {
+				#	if ($ENV{CACHED} && $did_a_a{$pid}) { return; }
+				#	if ($SPONSOR_A_ATTRS !~ /FLD003\+\@4\(\(\@1\([^"]+\)\)\+(\d{5})\)/) { warn "Sponsor <a> element not understood: $SPONSOR_A_ATTRS."; }
+				#	DBUpdate(LOW_PRIORITY, 'people', ["id=$pid"], thomasid=>$1);
+				#	$did_a_a{$pid} = 1;
+				#	if ($ENV{CACHED}) { return; }
+				#}
 			} else {
 				$SPONSOR_ID = "none=\"true\"";
 			}
@@ -806,8 +816,8 @@ sub GovGetBill {
 				}
 				push @ACTIONS, [$action_state, 1, $statusdateattrs, $what, undef, $STATE];
 				
-			} elsif ($what =~ /^Referred to (the )?((House|Senate|Committee) .*[^\.]).?/) {
-				$action_committee = $2;
+			} elsif ($what =~ /^(Read twice and )?[Rr]eferred to (the )?((House|Senate|Committee) .*[^\.]).?/) {
+				$action_committee = $3;
 				if ($$STATE[0] eq 'INTRODUCED') {
 					$STATE = ['REFERRED', $when];
 				}
@@ -849,6 +859,7 @@ sub GovGetBill {
 	my $mtime2;
 
 	# COSPONSORS
+	my %cosponsors_seen = ();
 	$URL =~ s/\@[\w\W]*$/\@\@\@P/;
 	($content, $mtime2) = Download($URL);
 	if ($content) {
@@ -882,13 +893,11 @@ sub GovGetBill {
 				$COSPONSORS_MISSING = 1;
 			}
 			else {
-				if (!$COSPONSORS{$i}) {
+				if (!$cosponsors_seen{$i}) {
 					# If we've already seen this cosponsor, then it's
 					# because he rejoined after withdrawing.
-					$COSPONSORS{$i}{added} = $d2;
-					if ($withdrawndate) {
-						$COSPONSORS{$i}{removed} = ParseDateTime($withdrawndate);
-					}
+					push @COSPONSORS, { id => $i, added => $d2, removed => $withdrawndate ? ParseDateTime($withdrawndate) : undef };
+					$cosponsors_seen{%i} = 1;
 				}
 			}
 
@@ -1047,10 +1056,10 @@ sub GovGetBill {
 
 	my @cos;
 	my $cos2;
-	foreach $c (keys(%COSPONSORS)) {
-		my $j = "joined=\"$COSPONSORS{$c}{added}\"";
-		my $r = ($COSPONSORS{$c}{removed} ? " withdrawn=\"$COSPONSORS{$c}{removed}\"" : '');
-		push @cos, "\t\t<cosponsor id=\"$c\" $j$r/>";
+	foreach $c (@COSPONSORS) {
+		my $j = "joined=\"$$c{added}\"";
+		my $r = ($$c{removed} ? " withdrawn=\"$$c{removed}\"" : '');
+		push @cos, "\t\t<cosponsor id=\"$$c{id}\" $j$r/>";
 	}
 	$cos2 = join("\n", @cos);
 	if ($COSPONSORS_MISSING) { $COSPONSORS_MISSING = ' missing-unrecognized-person="1"'; } else { $COSPONSORS_MISSING = ''; }
