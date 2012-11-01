@@ -1,4 +1,4 @@
-# for y in {2011..1989}; do CACHED=1 NOMAP=1 perl parse_rollcall.pl GET_ROLLS $y 0 no; done
+# for y in {2012..1989}; do CACHED=1 NOMAP=1 perl parse_rollcall.pl GET_ROLLS $y 0 no; done
 
 use Time::Local;
 use LWP::UserAgent;
@@ -727,7 +727,9 @@ sub MakeVoteMap {
 	if ($where eq "house") { $reptype = "rep"; } else { $reptype = "sen"; }
 
 	my $when = DateTimeToDBString($votexml->getAttribute("datetime"));
-	my $PERSON_ROLE_NOW = "(startdate <= '$when' and enddate >= '$when')";
+	my $when_date = $when;
+	$when_date =~ s/ .*$//; # strip time because it messes up database comparison with dates below
+	my $PERSON_ROLE_NOW = "(startdate <= '$when_date' and enddate >= '$when_date')";
 	
 	# CORRELATION WITH PARTY
 	
