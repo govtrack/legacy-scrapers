@@ -1,8 +1,8 @@
--- MySQL dump 10.13  Distrib 5.1.63, for debian-linux-gnu (x86_64)
+-- MySQL dump 10.13  Distrib 5.1.66, for debian-linux-gnu (x86_64)
 --
 -- Host: localhost    Database: govtrack
 -- ------------------------------------------------------
--- Server version	5.1.63-0ubuntu0.11.10.1
+-- Server version	5.1.66-0ubuntu0.11.10.3
 
 /*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
 /*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
@@ -44,14 +44,16 @@ CREATE TABLE `people` (
   `lismemberid` varchar(6) COLLATE utf8_bin DEFAULT NULL,
   `icpsrid` int(11) DEFAULT NULL,
   `fbid` bigint(20) DEFAULT NULL,
+  `thomasid` char(5) COLLATE utf8_bin DEFAULT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `bioguideid` (`bioguideid`),
+  UNIQUE KEY `thomasid` (`thomasid`),
   KEY `lastname` (`lastname`(30)),
   KEY `middlename` (`middlename`(15)),
   KEY `lastnameenc` (`lastnameenc`(15)),
   KEY `lastnamealt` (`lastnamealt`(15)),
   KEY `lismemberid` (`lismemberid`)
-) ENGINE=MyISAM AUTO_INCREMENT=412503 DEFAULT CHARSET=utf8 COLLATE=utf8_bin;
+) ENGINE=MyISAM AUTO_INCREMENT=412508 DEFAULT CHARSET=utf8 COLLATE=utf8_bin;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -77,7 +79,7 @@ CREATE TABLE `people_roles` (
   PRIMARY KEY (`personroleid`),
   KEY `personid` (`personid`),
   KEY `state` (`state`,`enddate`)
-) ENGINE=MyISAM AUTO_INCREMENT=43020 DEFAULT CHARSET=latin1;
+) ENGINE=MyISAM AUTO_INCREMENT=43025 DEFAULT CHARSET=latin1;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -170,4 +172,4 @@ CREATE TABLE `committees` (
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2012-07-09 17:24:12
+-- Dump completed on 2012-12-29 10:50:01

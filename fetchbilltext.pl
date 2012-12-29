@@ -158,18 +158,36 @@ sub GetBillFullText {
 		warn "pdftotext is not installed";
 	}
 
+	# Generate thumbnails
+	if (-e "/usr/bin/pdftoppm") {
+	foreach my $type (keys(%BillTypePrefix)) {
+	opendir BILLS, "$textdir/$type";
+	foreach my $bill (readdir(BILLS)) {
+		if ($bill !~ /$type(\d+)([a-z]+)\.pdf/) { next; }
+		my ($number, $status) = ($1, $2);
+		my $of = "$textdir/$type/$type$number$status-thumb200.png";
+		if (-e $of) { next; }
+		print "Generating image thumbnail $bill\n" if (!$OUTPUT_ERRORS_ONLY);
+		system("pdftoppm -f 1 -l 1 -scale-to 200 -png $textdir/$type/$bill > $of");
+	}
+	closedir BILLS;
+	}
+	} else {
+		warn "pdftoppm is not installed";
+	}
+
 	# Symlink the latest version to the unstatused files.
 	opendir BILLS, "$billdir";
 	foreach my $bill (readdir(BILLS)) {
 		if ($bill !~ /([hsrcj]+)(\d+)\.xml/) { next; }
 		my ($type, $number) = ($1, $2);
 		my @stz = GetBillStatusList($type);
-		for my $ext ('pdf', 'txt', 'html', 'xml', "mods.xml") {
-		unlink "$textdir/$type/$type$number.$ext";
+		for my $ext ('.pdf', '.txt', '.html', '.xml', ".mods.xml", "-thumb200.png") {
+		unlink "$textdir/$type/$type$number$ext";
 		for (my $sli = scalar(@stz)-1; $sli>=0; $sli--) {
 			my $file = "$type$number$stz[$sli]";
-			if (-e "$textdir/$type/$file.$ext") {
-				symlink "$file.$ext", "$textdir/$type/$type$number.$ext";
+			if (-e "$textdir/$type/$file$ext") {
+				symlink "$file$ext", "$textdir/$type/$type$number$ext";
 				last;
 			}
 		}
@@ -188,7 +206,7 @@ sub FetchBillTextPDF {
 	
 		my $URL = "http://www.gpo.gov/fdsys/pkg/BILLS-$session$fdstype$number$status/pdf/BILLS-$session$fdstype$number$status.pdf";
 		my $file = "$basedir/$type/$type$number$status.pdf";
-		if (!-e $file) {
+		if (!-e $file || $ENV{FORCE}) {
 			print "Bill Text PDF: $session/$type$number/$status\n" if (!$OUTPUT_ERRORS_ONLY);
 		
 			#sleep(1);
@@ -211,7 +229,7 @@ sub FetchBillTextPDF {
 		# MODS
 		
 		my $file = "$basedir/$type/$type$number$status.mods.xml";
-		if (!-e $file) {
+		if (!-e $file || $ENV{FORCE}) {
 			print "Bill Text MODS: $session/$type$number/$status\n" if (!$OUTPUT_ERRORS_ONLY);
 			
 			#sleep(1);
@@ -244,7 +262,7 @@ sub FetchBillXml {
 	my $session = shift;
 	my $textdir = shift;
 
-	sleep(1);
+	#sleep(1);
 	print "Retreiving House XML Bill List... \n" if (!$OUTPUT_ERRORS_ONLY);;
 	my $URL = "http://thomas.loc.gov/home/gpoxmlc$session/";
 	my $response = $UA->get($URL);
@@ -262,8 +280,8 @@ sub FetchBillXml {
 		my $st = $3;
 
 		my $file = "$textdir/$type/$type$num$st.xml";
-		if (!-e $file) {
-			sleep(1);
+		if (!-e $file || $ENV{FORCE}) {
+			#sleep(1);
 			print "Bill Text XML: $session/$type$num/$st\n" if (!$OUTPUT_ERRORS_ONLY);
 			my $URL = "http://thomas.loc.gov/home/gpoxmlc$session/$type$num" . "_$st.xml";
 			my $response = $UA->get($URL);
@@ -322,7 +340,7 @@ sub FetchBillTextHTML2 {
 	}
 
 	my $URL = "http://thomas.loc.gov" . $1;
-	sleep(1);
+	#sleep(1);
 	my $response = $UA->get($URL);
 	if (!$response->is_success) {
 		warn "Could not fetch bill text at $URL: " . $response->code . " " . $response->message;

@@ -665,7 +665,7 @@ sub WriteRoll {
 	} else {
 		die $fn;
 	}
-	if (!$ENV{NOMAP} && !$SkipMaps) { MakeVoteMap($SESSION, $id); }
+	#if (!$ENV{NOMAP} && !$SkipMaps) { MakeVoteMap($SESSION, $id); }
 
 	if (defined($BILL)) {
 		if (!$ENV{NOBILLS}) {

@@ -36,7 +36,7 @@ DBClose();
 system("cd ~/web; ./run_parsers.sh");
 
 # Update the git archive.
-system("cd; ./update-git-repo");
+#system("cd; ./update-git-repo");
 
 sub DoEarlyGather {
 	# Update any bills whose THOMAS summary changed.

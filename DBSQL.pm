@@ -186,7 +186,7 @@ sub Insert { # (['LOW_PRIORITY', 'DELAYED', 'IGNORE'], $table, %values) => inser
 	return InsertUpdate('insert', $table, \@opts, [], @_);
 }
 
-sub Update { # (['LOW PRIORITY', 'IGNORE'], $table, \@specs, %values)
+sub Update { # (['LOW_PRIORITY', 'IGNORE'], $table, \@specs, %values)
 	my @opts;
 	while ($_[0] eq 'LOW_PRIORITY' || $_[0] eq 'IGNORE') {
 		push @opts, $_[0]; shift;
