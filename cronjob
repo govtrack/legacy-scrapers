@@ -11,6 +11,7 @@ undef @ARGV;
 
 my $today = DateToDBString(time);
 my $session = SessionFromDateTime($today);
+$session = 112;
 
 print `date`;
 
