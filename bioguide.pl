@@ -30,7 +30,7 @@ for my $C ('A' .. 'Z') {
 
 	my $content;
 	if (!$ENV{CACHED}) {
-		sleep(1);
+		#sleep(1);
 	    my $response = $UA->post(
     	"http://bioguide.congress.gov/biosearch/biosearch1.asp",
 	    	{ lastname => $C } );
@@ -46,7 +46,7 @@ for my $C ('A' .. 'Z') {
 	my $id;
 	for my $line (split(/[\n\r]+/, $content)) {
 		if ($line =~ /bioguide.congress.gov\/scripts\/biodisplay.pl/) {
-			if ($line !~ /bioguide.congress.gov\/scripts\/biodisplay.pl\?index=(\w+)">([^<]+)<\/A><\/td><td>(c?a?\.? ?[\d\/\?]+c?|\&nbsp;|unknown)-(c? ?[\d\/\?]+c?|\&nbsp;|)\s*<\/td>$/) {
+			if ($line !~ /bioguide.congress.gov\/scripts\/biodisplay.pl\?index=(\w+)">([^<]+)<\/A><\/td><td>(c?a?\.? ?[\d\/\?]+c?|\&nbsp;|unknown)-(c?a?\.? ?[\d\/\?]+c?|\&nbsp;|)\s*<\/td>$/) {
 				die $line;
 			}
 			my $birth;
@@ -96,7 +96,7 @@ foreach my $id (@IDs) {
     my $url = "http://bioguide.congress.gov/scripts/biodisplay.pl?index=$id";
     my $content;
     if (!$ENV{CACHED}) {
-		sleep(1);
+		#sleep(1);
 	    my $response = $UA->get($url);
 		if (!$response->is_success) { die $response->message; }
 		$content = $response->content;
@@ -135,7 +135,7 @@ foreach my $id (@IDs) {
 	}
 	$bio =~ s/<(.*?)>//g; # remove any stray tags
 
-	$csv->combine($id, $bio) or die $csv->error_input();
+	$csv->combine($id, encode_utf8($bio)) or die $csv->error_input();
 	print B3 $csv->string() . "\n";
 }
 
