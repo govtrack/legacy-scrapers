@@ -65,8 +65,8 @@ sub GetPeopleList {
 		my @currole = DBSelectFirst(people_roles, [type, state, district, party, title],
 			["personid=$rep{id}",
 			 "(type='rep' or type='sen')",
-			 "startdate<='" . EndOfSessionYMD($session) . "'",
-			 "enddate>='" . StartOfSessionYMD($session) . "'",
+			 "startdate<'" . EndOfSessionYMD($session) . "'",
+			 "enddate>'" . StartOfSessionYMD($session) . "'",
 				 ], "ORDER BY startdate DESC");
 
 		$Person{$rep{id}}{NAME} = "$rep{firstnamedisplay} $rep{lastnameenc}";
@@ -135,7 +135,7 @@ sub GetPeopleList {
 				print $PEOPLE " class='$role[6]'" if ($role[0] eq 'sen');
 				print $PEOPLE " url='$role[7]'" if $role[7] ne "";
 				print $PEOPLE " address='$role[8]'" if $role[8] ne "";
-				print $PEOPLE " current='1'" if ($role[1] le DateToDBString(time) && $role[2] ge DateToDBString(time));
+				print $PEOPLE " current='1'" if ($role[1] le DateToDBString(time) && $role[2] gt DateToDBString(time));
 				print $PEOPLE " />\n";
 			}
 		

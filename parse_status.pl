@@ -10,7 +10,7 @@ use HTML::Entities;
 
 require "general.pl";
 require "persondb.pl";
-require "parse_rollcall.pl";
+#require "parse_rollcall.pl";
 require "indexing.pl";
 
 if ($ENV{OUTPUT_ERRORS_ONLY}) { $OUTPUT_ERRORS_ONLY = 1; }
@@ -20,6 +20,7 @@ if ($ARGV[0] eq "PARSE_STATUS_STDIN") { &Main2; }
 if ($ARGV[0] eq "REFRESH") { GovDBOpen(); RefreshBills($ARGV[1], $ARGV[2], $ARGV[3]); DBClose(); }
 if ($ARGV[0] eq "UPDATE" || $ARGV[0] eq "ALL" || $ARGV[0] eq "MISSING") { GovDBOpen(); UpdateBills($ARGV[1], $ARGV[0] eq "UPDATE" ? 0 : $ARGV[0]); DBClose(); }
 if ($ARGV[0] eq "ALLAMENDMENTS") { &AllAmendments; }
+if ($ARGV[0] eq "SUMMARIES") { &DoSummaries; }
 
 1;
 
@@ -62,6 +63,7 @@ sub UpdateBills {
 		
 		while (defined($offset)) {
 			my $url = "http://thomas.loc.gov/cgi-bin/bdquery/d?d$SESSION2:$offset:./list/bss/d$SESSION2$tbt.lst:\[\[o\]\]";
+			print "$url\n";
 			undef $offset;
 			
 			my ($content, $mtime) = Download($url);
@@ -385,13 +387,23 @@ sub GovGetBill {
 				if ($SPONSOR_NAME =~ s/^(Sen|Rep)\.?\s+//i) { $SPONSOR_TITLE = $1; }
 				
 				$SPONSOR_NAME =~ s/Colordao/Colorado/; # typo
+				
+				if ($SPONSOR_A_ATTRS =~ /FLD003\+\@4\(\(\@1\([^"]+\)\)\+(\d{5})\)/) {
+					# Starting in 2013, try THOMAS IDs first. More reliable? We're
+					# only doing historical data now anyway.
+					my $thomasid = $1;
+					my @ret = DBSelectFirst(people, [id], ["thomasid='$thomasid'"]);
+					$SPONSOR_ID = $ret[0];
+				}
 
+				if (!$SPONSOR_ID) {
 				$SPONSOR_ID = PersonDBGetID(
 					title => $SPONSOR_TITLE,
 					name => $SPONSOR_NAME,
 					state => $SPONSOR_STATE,
 					when => $INTRODUCED);
-				my $pid = $SPONSOR_ID;
+				}
+				
 				if (!defined($SPONSOR_ID)) { warn "parsing bill $BILLTYPE$SESSION-$BILLNUMBER: Unknown sponsor: $SPONSOR_TITLE, $SPONSOR_NAME, $SPONSOR_STATE"; return; }
 				else { $SPONSOR_ID = "id=\"$SPONSOR_ID\""; }
 
@@ -504,7 +516,7 @@ sub GovGetBill {
 					$STATUSNOW = "<$votetype $statusdateattrs where=\"h\" result=\"$passfail\" how=\"$how\" roll=\"$roll\"/>";
 				}
 
-				if ($roll != 0 && YearFromDateTime($when) >= 1990) { GetHouseVote(YearFromDateTime($when), $roll, 1); }
+				#if ($roll != 0 && YearFromDateTime($when) >= 1990) { GetHouseVote(YearFromDateTime($when), $roll, 1); }
 
 				# Funny thing: on a motion to suspend the rules and 
 				# pass, if the motion fails, the bill may still yet 
@@ -655,7 +667,7 @@ sub GovGetBill {
 					$STATUSNOW = "<$votetype $statusdateattrs where=\"s\" result=\"$passfail\" how=\"$how\" roll=\"$roll\"/>";
 				}
 
-				if ($roll != 0 && $SESSION >= 101) { GetSenateVote($SESSION, SubSessionFromDateTime($when), YearFromDateTime($when), $roll, 1); }
+				#if ($roll != 0 && $SESSION >= 101) { GetSenateVote($SESSION, SubSessionFromDateTime($when), YearFromDateTime($when), $roll, 1); }
 
 				if ($votetype eq "vote" || $votetype eq "vote2") {
 					# Senate vote on a Senate bill.
@@ -887,11 +899,23 @@ sub GovGetBill {
 				$d = $INTRODUCED;
 				$d2 = $INTRODUCED2;
 			}
-			my $i = PersonDBGetID(title => $t, name => $n, state => $s, when => $d);
+
+			my $i;
+			if ($cline =~ /FLD004\+\@4\(\(\@1\([^"]+\)\)\+(\d{5})\)/) {
+				# Starting in 2013, try THOMAS IDs first. More reliable? We're
+				# only doing historical data now anyway.
+				my $thomasid = $1;
+				my @ret = DBSelectFirst(people, [id], ["thomasid='$thomasid'"]);
+				$i = $ret[0];
+			} else {
+				$i = PersonDBGetID(title => $t, name => $n, state => $s, when => $d);
+			}
+			
 			if (!defined($i)) {
 				warn "parsing bill $BILLTYPE$SESSION-$BILLNUMBER: Unknown person: $t, $n, $s on $d2";
 				$COSPONSORS_MISSING = 1;
 			}
+			
 			else {
 				if (!$cosponsors_seen{$i}) {
 					# If we've already seen this cosponsor, then it's
@@ -1293,7 +1317,7 @@ sub ParseAmendment {
 					$method = "roll";
 					$rollattr = " roll=\"$roll\"";
 					
-					if (lc($chamber) eq "h") { GetHouseVote(YearFromDate(ParseTime($when)), $roll, 1); }
+					if (lc($chamber) eq "h") { } # GetHouseVote(YearFromDate(ParseTime($when)), $roll, 1); }
 					else { warn "parsing amendment $session:$chamber$number: House-style vote on Senate amendment?"; }
 				}
 				$actions .= "\t\t<vote $statusdateattrs result=\"$passfail\" how=\"$method\"$rollattr>$axnxml</vote>\n";
@@ -1315,7 +1339,7 @@ sub ParseAmendment {
 					$method = "roll";
 					$rollattr = " roll=\"$roll\"";
 					
-					if (lc($chamber) eq "s") { GetSenateVote($session, SubSessionFromDateTime(ParseDateTime($when)), YearFromDate(ParseTime($when)), $roll, 1); }
+					if (lc($chamber) eq "s") { } # GetSenateVote($session, SubSessionFromDateTime(ParseDateTime($when)), YearFromDate(ParseTime($when)), $roll, 1); }
 					else { warn "parsing amendment $session:$chamber$number: Senate-style vote on House amendment?"; }
 				}
 				$actions .= "\t\t<vote $statusdateattrs result=\"$passfail\" how=\"$method\"$rollattr>$axnxml</vote>\n";
@@ -1489,3 +1513,29 @@ sub CompareDates {
 	if ($b !~ /T/) { $a =~ s/T.*//; }
 	return $a cmp $b;
 }
+
+sub DoSummaries {
+	# Generate summary files.
+	my $congress = $ARGV[1];
+	
+	mkdir "../data/us/$congress/bills.summary";
+	
+	for my $fn (ScanDir("../data/us/$congress/bills")) {
+		$fn =~ s/\.xml$//;
+		my $sfn = "../data/us/$congress/bills.summary/$fn.summary.xml";
+		if (-e $sfn && (-M $sfn >= -M $fn)) { next; } # already up to date
+		
+		my $dom = $XMLPARSER->parse_file("../data/us/$congress/bills/$fn.xml");
+		my $sum = $dom->findvalue('string(bill/summary)');
+		if (!$sum) { next; }
+
+		$sum = HTMLify($sum); # pre-escape
+
+		print "writing summary file for $fn\n";
+		open SUMMARY, ">", $sfn;
+		binmode(SUMMARY, ":utf8");
+		print SUMMARY FormatBillSummary($sum);
+		close SUMMARY;
+	}	
+}
+

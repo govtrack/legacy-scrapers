@@ -159,7 +159,7 @@ sub GetBillFullText {
 	}
 
 	# Generate thumbnails
-	if (-e "/usr/bin/pdftoppm") {
+	if (-e "/usr/bin/pdftoppm" && $session >= 112) {
 	foreach my $type (keys(%BillTypePrefix)) {
 	opendir BILLS, "$textdir/$type";
 	foreach my $bill (readdir(BILLS)) {
@@ -229,7 +229,9 @@ sub FetchBillTextPDF {
 		# MODS
 		
 		my $file = "$basedir/$type/$type$number$status.mods.xml";
-		if (!-e $file || $ENV{FORCE}) {
+		if ((!-e $file || $ENV{FORCE}) && 0) {
+			# DISABLED - now done by new scrapers
+			
 			print "Bill Text MODS: $session/$type$number/$status\n" if (!$OUTPUT_ERRORS_ONLY);
 			
 			#sleep(1);
