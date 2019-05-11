@@ -790,7 +790,7 @@ sub GovGetBill {
 				$wasvetoed = 1;
 				$STATE = ['PROV_KILL:VETO', $when]; # could be overridden
 				push @ACTIONS, [$action_state, 2, "vetoed", $what, { @axndateattrs }, $STATE];
-			} elsif ($what =~ /(Became )?(Public|Private) Law( No:)? ([\d\-]+)\./i) {
+			} elsif ($what =~ /^(Became )?(Public|Private) Law( No:)? ([\d\-]+)\./i) {
 				$STATUSNOW = "<enacted $statusdateattrs />";
 				if (!$wasvetoed) {
 					$STATE = ['ENACTED:SIGNED', $when, {type => lc($2), number => $4}];
@@ -1521,11 +1521,12 @@ sub DoSummaries {
 	mkdir "../data/us/$congress/bills.summary";
 	
 	for my $fn (ScanDir("../data/us/$congress/bills")) {
+		my $fn2 = "../data/us/$congress/bills/$fn";
 		$fn =~ s/\.xml$//;
 		my $sfn = "../data/us/$congress/bills.summary/$fn.summary.xml";
-		if (-e $sfn && (-M $sfn >= -M $fn)) { next; } # already up to date
+		if (-e $sfn && (-M $sfn < -M $fn2)) { next; } # already up to date, note that -M is how old the file is in days relative to now, so its sign is the opposite of file modified time
 		
-		my $dom = $XMLPARSER->parse_file("../data/us/$congress/bills/$fn.xml");
+		my $dom = $XMLPARSER->parse_file($fn2);
 		my $sum = $dom->findvalue('string(bill/summary)');
 		if (!$sum) { next; }
 

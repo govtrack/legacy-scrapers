@@ -6,8 +6,8 @@ if ($ARGV[0] eq "THUMBS") {
 	CreateThumbs($ARGV[1]);
 } elsif ($ARGV[0] eq 'IMPORT') {
 	my $pid = $ARGV[1];
-	if ($ARGV[2] =~ /http:/) {
-		system("wget -O ../data/photos/$ARGV[1].jpeg \"$ARGV[2]\"");
+	if ($ARGV[2] =~ /https?:/) {
+		system("wget --no-check-certificate -O ../data/photos/$ARGV[1].jpeg \"$ARGV[2]\"");
 	} else {
 		if ($pid eq "") {
 			if ($ARGV[2] !~ /(^|\/)(\d+)\.jpe?g$/i) { die; }

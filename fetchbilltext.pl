@@ -115,20 +115,42 @@ sub GetBillFullText {
 	mkdir $textdir;
 	
 	for my $year (YearFromYMD(StartOfSessionYMD($session)) .. YearFromYMD(EndOfSessionYMD($session))) {
+		# skip if year is in the future - sitemap file won't exist yet, script will die
+		my ($sec,$min,$hour,$day,$month,$yr,@rest) =   localtime(time);
+		$now_year = 1900+$yr;
+		if ($year > $now_year) { next; }
+
 		# file may contain bills from a different congress because it is
 		# by calendar year, but we are filtering in the regex properly.
-		my $response = $UA->get("http://www.gpo.gov/smap/fdsys/sitemap_$year/${year}_BILLS_sitemap.xml");
+		my $response = $UA->get("https://www.gpo.gov/smap/fdsys/sitemap_$year/${year}_BILLS_sitemap.xml");
 		if (!$response->is_success) { warn "Could not fetch bill list for $year"; next; }
 		my $content = $response->content;
 		$HTTP_BYTES_FETCHED += length($content);
-		while ($content =~ m|http://www.gpo.gov/fdsys/pkg/BILLS-$session([a-z]+)(\d+)([a-z]\w*)/content-detail|g) {
+		while ($content =~ m|https://www.gpo.gov/fdsys/pkg/BILLS-$session([a-z]+)(\d+)([a-z]\w*)/content-detail|g) {
 			FetchBillTextPDF($session, $1, $2, $3) if (!$nopdfs);
 			FetchBillTextHTML($session, $fdsys_to_gt_billtype{$1}, $2, $3);
 		}
 	}
+	if ($session <= 102) {
+		# Can't use bill text list from GPO.
+		opendir BILLS, "$billdir";
+		foreach my $bill (readdir(BILLS)) {
+			if ($bill !~ /([hsrcj]+)(\d+)\.xml/) { next; }
+			my ($type, $number) = ($1, $2);
+			foreach my $status (GetBillStatusList($type)) {
+				# It's harder to figure out what statuses are actually available. Just try all.
+				# This might not pick up something like an ats2. Oh well.
+				FetchBillTextHTML($session, $type, $number, $status);
+			}
+		}
+		closedir BILLS;
+		
+	}
+
+	return;
 
 	# Download XML files
-	FetchBillXml($session, $textdir) if ($session >= 108);
+	#FetchBillXml($session, $textdir) if ($session >= 108);
 
 	# Textify bills
 	if (-e "/usr/bin/pdftotext") {
@@ -155,7 +177,6 @@ sub GetBillFullText {
 	closedir BILLS;
 	}
 	} else {
-		warn "pdftotext is not installed";
 	}
 
 	# Generate thumbnails
@@ -168,12 +189,13 @@ sub GetBillFullText {
 		my $of = "$textdir/$type/$type$number$status-thumb200.png";
 		if (-e $of) { next; }
 		print "Generating image thumbnail $bill\n" if (!$OUTPUT_ERRORS_ONLY);
-		system("pdftoppm -f 1 -l 1 -scale-to 200 -png $textdir/$type/$bill > $of");
+		# Facebook requires min size of 200x200, so specify 260 for the long
+		# edge so that the short edge is about 200px.
+		system("pdftoppm -f 1 -l 1 -scale-to 260 -png $textdir/$type/$bill > $of");
 	}
 	closedir BILLS;
 	}
 	} else {
-		warn "pdftoppm is not installed";
 	}
 
 	# Symlink the latest version to the unstatused files.
@@ -200,13 +222,13 @@ sub FetchBillTextPDF {
 	my ($session, $fdstype, $number, $status) = @_;
 	my $type = $fdsys_to_gt_billtype{$fdstype};
 	
-	my $basedir = "../data/us/bills.text/$session";
+	my $basedir = "../data/congress-bill-text-legacy/$session";
 	
 		# PDF
 	
-		my $URL = "http://www.gpo.gov/fdsys/pkg/BILLS-$session$fdstype$number$status/pdf/BILLS-$session$fdstype$number$status.pdf";
+		my $URL = "https://www.gpo.gov/fdsys/pkg/BILLS-$session$fdstype$number$status/pdf/BILLS-$session$fdstype$number$status.pdf";
 		my $file = "$basedir/$type/$type$number$status.pdf";
-		if (!-e $file || $ENV{FORCE}) {
+		if (!-e $file || ($ENV{FORCE} && $session >= 113)) {
 			print "Bill Text PDF: $session/$type$number/$status\n" if (!$OUTPUT_ERRORS_ONLY);
 		
 			#sleep(1);
@@ -237,11 +259,11 @@ sub FetchBillTextPDF {
 			#sleep(1);
 			# Statuses on FDSYS are generally capitalized, but not always, and it seems to be random.
 			my $status2 = uc($status);
-			my $URL = "http://www.gpo.gov/fdsys/pkg/BILLS-${session}${fdstype}${number}${status2}/mods.xml";
+			my $URL = "https://www.gpo.gov/fdsys/pkg/BILLS-${session}${fdstype}${number}${status2}/mods.xml";
 			my $response = $UA->get($URL);
 			if (!$response->is_success || $response->content =~ /Error Detected|nocontent.htm/) {
 				$status2 = lc($status);
-				$URL = "http://www.gpo.gov/fdsys/pkg/BILLS-${session}${fdstype}${number}${status2}/mods.xml";
+				$URL = "https://www.gpo.gov/fdsys/pkg/BILLS-${session}${fdstype}${number}${status2}/mods.xml";
 				$response = $UA->get($URL);
 			}
 			if (!$response->is_success || $response->content =~ /Error Detected|nocontent.htm/) {
@@ -308,8 +330,8 @@ sub FetchBillTextHTML {
 	my $type2 = $type;
 	if ($type2 eq "hr") { $type2 = "hres"; }
 		
-		my $file = "../data/us/bills.text/$session/$type/$type$number$status.html";
-		if (-e $file) { next; }
+		my $file = "../data/congress-bill-text-legacy/$session/$type/$type$number$status.html";
+		if (-e $file && !$ENV{FORCE}) { next; }
 
 	print "Bill Text HTML: $session/$type$number/$status\n" if (!$OUTPUT_ERRORS_ONLY);
 
@@ -322,7 +344,7 @@ sub FetchBillTextHTML {
 			warn "Could not fetch bill text at $URL: " . $response->code . " " . $response->message;
 			return;
 		}
-		my $htmltext = $response->content;
+			my $htmltext = $response->content;
 		$HTTP_BYTES_FETCHED += length($htmltext);
 
 		FetchBillTextHTML2($session, $type, $number, $status, $htmltext);
@@ -330,10 +352,10 @@ sub FetchBillTextHTML {
 
 sub FetchBillTextHTML2 {
 	my ($session, $type, $number, $status, $htmlpage) = @_;
-	my $file = "../data/us/bills.text/$session/$type/$type$number$status.html";
-	if (-e $file) { return; }
+	my $file = "../data/congress-bill-text-legacy/$session/$type/$type$number$status.html";
+	#if (-e $file) { return; }
 
-	mkdir "../data/us/bills.text/$session/$type";
+	mkdir "../data/congress-bill-text-legacy/$session/$type";
 
 	# move to printer friendly page
 	if ($htmlpage !~ /<a href="(\/cgi-bin\/query\/C\?[^"]+)"[^>]*>(<em>)?Printer Friendly/i) {
